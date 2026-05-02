@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: apiautopsy
+      POSTGRES_USER: apiautopsy
+      POSTGRES_PASSWORD: apiautopsy
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apiautopsy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/apiautopsy
+      DATABASE_USERNAME: apiautopsy
+      DATABASE_PASSWORD: apiautopsy
+      REDIS_HOST: redis
+      JWT_SECRET: replace-with-32-byte-prod-secret-key
+      CRYPTO_SECRET: replace-with-32-byte-prod-secret-key
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

@@ -1,0 +1,38 @@
+{
+  "workspace": "APIAutopsy Demo",
+  "collections": [
+    {
+      "name": "Public Health Checks",
+      "requests": [
+        {
+          "name": "HTTPBin 200",
+          "method": "GET",
+          "url": "https://httpbin.org/status/200",
+          "headers": { "Accept": "application/json" },
+          "queryParams": {},
+          "bodyType": "NONE",
+          "body": {},
+          "authType": "NONE"
+        },
+        {
+          "name": "HTTPBin JSON",
+          "method": "GET",
+          "url": "https://httpbin.org/json",
+          "headers": { "Accept": "application/json" },
+          "queryParams": {},
+          "bodyType": "NONE",
+          "body": {},
+          "authType": "NONE"
+        }
+      ]
+    }
+  ],
+  "schedules": [
+    {
+      "name": "HTTPBin 200 every five minutes",
+      "scheduleType": "INTERVAL",
+      "intervalMinutes": 5,
+      "enabled": true
+    }
+  ]
+}

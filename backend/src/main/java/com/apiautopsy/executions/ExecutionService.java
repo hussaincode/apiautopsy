@@ -1,0 +1,163 @@
+package com.apiautopsy.executions;
+
+import com.apiautopsy.common.NotFoundException;
+import com.apiautopsy.requests.ApiRequest;
+import com.apiautopsy.requests.ApiRequestRepository;
+import com.apiautopsy.requests.AuthType;
+import com.apiautopsy.requests.BodyType;
+import com.apiautopsy.schedules.Schedule;
+import com.apiautopsy.security.CryptoService;
+import com.apiautopsy.workspaces.WorkspaceService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.*;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+public class ExecutionService {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
+    private final ApiRequestRepository requests;
+    private final ExecutionRepository executions;
+    private final WorkspaceService workspaceService;
+    private final CryptoService crypto;
+    private final SsrfGuard ssrfGuard;
+    private final RestClient restClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory()).build();
+
+    public ExecutionService(ApiRequestRepository requests, ExecutionRepository executions, WorkspaceService workspaceService, CryptoService crypto, SsrfGuard ssrfGuard) {
+        this.requests = requests;
+        this.executions = executions;
+        this.workspaceService = workspaceService;
+        this.crypto = crypto;
+        this.ssrfGuard = ssrfGuard;
+    }
+
+    @Transactional
+    public ExecutionDtos.ExecutionResponse executeNow(UUID userId, UUID workspaceId, UUID requestId) {
+        workspaceService.requireMember(workspaceId, userId);
+        ApiRequest request = requests.findByIdAndWorkspaceId(requestId, workspaceId).orElseThrow(() -> new NotFoundException("API request not found"));
+        return toResponse(executeInternal(request, null));
+    }
+
+    @Transactional
+    public Execution executeScheduled(ApiRequest request, Schedule schedule) {
+        return executeInternal(request, schedule);
+    }
+
+    public List<ExecutionDtos.ExecutionResponse> history(UUID userId, UUID workspaceId) {
+        workspaceService.requireMember(workspaceId, userId);
+        return executions.findTop100ByWorkspaceIdOrderByExecutedAtDesc(workspaceId).stream().map(this::toResponse).toList();
+    }
+
+    public ExecutionDtos.ReportResponse report(UUID userId, UUID workspaceId) {
+        workspaceService.requireMember(workspaceId, userId);
+        Object[] row = executions.aggregateWorkspace(workspaceId, Instant.now().minus(Duration.ofDays(30)));
+        long total = row[0] == null ? 0 : ((Number) row[0]).longValue();
+        long success = row[1] == null ? 0 : ((Number) row[1]).longValue();
+        double avg = row[2] == null ? 0 : ((Number) row[2]).doubleValue();
+        double successRate = total == 0 ? 0 : (success * 100.0 / total);
+        return new ExecutionDtos.ReportResponse(total, success, successRate, 100.0 - successRate, avg);
+    }
+
+    private Execution executeInternal(ApiRequest request, Schedule schedule) {
+        Execution execution = new Execution();
+        execution.workspace = request.workspace;
+        execution.apiRequest = request;
+        execution.schedule = schedule;
+        Instant started = Instant.now();
+        try {
+            URI uri = buildUri(request);
+            HttpHeaders headers = buildHeaders(request);
+            Object body = buildBody(request, headers);
+            ResponseEntity<String> response = restClient.method(HttpMethod.valueOf(request.method.name()))
+                .uri(uri)
+                .headers(h -> h.addAll(headers))
+                .body(body == null ? "" : body)
+                .retrieve()
+                .toEntity(String.class);
+            execution.statusCode = response.getStatusCode().value();
+            execution.success = response.getStatusCode().is2xxSuccessful() || response.getStatusCode().is3xxRedirection();
+            execution.responseHeaders = flattenHeaders(response.getHeaders());
+            execution.responseBody = truncate(response.getBody(), 250_000);
+        } catch (RestClientResponseException e) {
+            execution.statusCode = e.getStatusCode().value();
+            execution.success = false;
+            execution.responseHeaders = flattenHeaders(e.getResponseHeaders() == null ? new HttpHeaders() : e.getResponseHeaders());
+            execution.responseBody = truncate(e.getResponseBodyAsString(), 250_000);
+            execution.errorMessage = truncate(e.getMessage(), 4_000);
+        } catch (Exception e) {
+            execution.success = false;
+            execution.errorMessage = truncate(e.getMessage(), 4_000);
+        }
+        execution.responseTimeMs = Duration.between(started, Instant.now()).toMillis();
+        executions.save(execution);
+        return execution;
+    }
+
+    private URI buildUri(ApiRequest request) {
+        URI base = ssrfGuard.validateExternalHttpUrl(request.url);
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUri(base);
+        request.queryParams.forEach((k, v) -> { if (v != null) builder.queryParam(k, v); });
+        return builder.build(true).toUri();
+    }
+
+    private HttpHeaders buildHeaders(ApiRequest request) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        request.headers.forEach((k, v) -> { if (v != null) headers.add(k, String.valueOf(v)); });
+        if (request.authType != AuthType.NONE && request.authEncrypted != null) {
+            Map<String, Object> auth = MAPPER.readValue(crypto.decrypt(request.authEncrypted), MAP);
+            if (request.authType == AuthType.BEARER) headers.setBearerAuth(String.valueOf(auth.get("token")));
+            if (request.authType == AuthType.API_KEY) headers.add(String.valueOf(auth.getOrDefault("headerName", "X-API-Key")), String.valueOf(auth.get("apiKey")));
+            if (request.authType == AuthType.BASIC) headers.setBasicAuth(String.valueOf(auth.get("username")), String.valueOf(auth.get("password")));
+        }
+        return headers;
+    }
+
+    private Object buildBody(ApiRequest request, HttpHeaders headers) {
+        if (request.bodyType == BodyType.NONE) return null;
+        String contentType = headers.getFirst(HttpHeaders.CONTENT_TYPE);
+        if (request.bodyType == BodyType.FORM_DATA) {
+            MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+            request.body.forEach((key, value) -> form.add(key, value == null ? "" : value));
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            return form;
+        }
+        if (contentType != null && contentType.toLowerCase().contains("x-www-form-urlencoded")) {
+            return request.body.entrySet().stream()
+                .map(entry -> entry.getKey() + "=" + (entry.getValue() == null ? "" : String.valueOf(entry.getValue())))
+                .reduce((left, right) -> left + "&" + right)
+                .orElse("");
+        }
+        if (request.body.containsKey("value")) return String.valueOf(request.body.get("value"));
+        return request.body;
+    }
+
+    private Map<String, Object> flattenHeaders(HttpHeaders headers) {
+        Map<String, Object> flat = new LinkedHashMap<>();
+        headers.forEach((key, value) -> flat.put(key, value.size() == 1 ? value.getFirst() : value));
+        return flat;
+    }
+
+    private String truncate(String value, int max) {
+        if (value == null || value.length() <= max) return value;
+        return value.substring(0, max);
+    }
+
+    private ExecutionDtos.ExecutionResponse toResponse(Execution e) {
+        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt);
+    }
+}
