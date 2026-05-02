@@ -47,15 +47,38 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
     private static String normalizeJdbcUrl(String url) {
         if (url.startsWith("jdbc:postgresql://")) {
-            return removeUnsupportedQueryParams(url);
+            return stripUserInfo(removeUnsupportedQueryParams(url));
         }
         if (url.startsWith("postgresql://")) {
-            return removeUnsupportedQueryParams("jdbc:" + url);
+            return stripUserInfo(removeUnsupportedQueryParams("jdbc:" + url));
         }
         if (url.startsWith("postgres://")) {
-            return removeUnsupportedQueryParams("jdbc:postgresql://" + url.substring("postgres://".length()));
+            return stripUserInfo(removeUnsupportedQueryParams("jdbc:postgresql://" + url.substring("postgres://".length())));
         }
         return url;
+    }
+
+    private static String stripUserInfo(String jdbcUrl) {
+        String uriValue = jdbcUrl.startsWith("jdbc:") ? jdbcUrl.substring("jdbc:".length()) : jdbcUrl;
+        try {
+            URI uri = URI.create(uriValue);
+            if (uri.getRawUserInfo() == null) {
+                return jdbcUrl;
+            }
+
+            URI sanitized = new URI(
+                uri.getScheme(),
+                null,
+                uri.getHost(),
+                uri.getPort(),
+                uri.getPath(),
+                uri.getQuery(),
+                uri.getFragment()
+            );
+            return "jdbc:" + sanitized;
+        } catch (Exception ignored) {
+            return jdbcUrl;
+        }
     }
 
     private static String removeUnsupportedQueryParams(String jdbcUrl) {
