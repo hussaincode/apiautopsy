@@ -45,6 +45,8 @@ logging:
     org.springframework.security: INFO
 management:
   health:
+    db:
+      enabled: ${MANAGEMENT_HEALTH_DB_ENABLED:false}
     redis:
       enabled: ${MANAGEMENT_HEALTH_REDIS_ENABLED:false}
   endpoints:
