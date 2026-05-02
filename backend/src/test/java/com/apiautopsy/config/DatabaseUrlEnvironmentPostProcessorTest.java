@@ -24,4 +24,22 @@ class DatabaseUrlEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("spring.datasource.username")).isEqualTo("neondb_owner");
         assertThat(environment.getProperty("spring.datasource.password")).isEqualTo("npg_secret");
     }
+
+    @Test
+    void buildsJdbcUrlFromRailwayPostgresVariablesWhenUrlIsBlank() {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("SPRING_DATASOURCE_URL", "")
+            .withProperty("PGHOST", "railway.internal")
+            .withProperty("PGPORT", "5432")
+            .withProperty("PGDATABASE", "railway")
+            .withProperty("PGUSER", "postgres")
+            .withProperty("PGPASSWORD", "secret");
+
+        processor.postProcessEnvironment(environment, new SpringApplication());
+
+        assertThat(environment.getProperty("spring.datasource.url"))
+            .isEqualTo("jdbc:postgresql://railway.internal:5432/railway?sslmode=require");
+        assertThat(environment.getProperty("spring.datasource.username")).isEqualTo("postgres");
+        assertThat(environment.getProperty("spring.datasource.password")).isEqualTo("secret");
+    }
 }

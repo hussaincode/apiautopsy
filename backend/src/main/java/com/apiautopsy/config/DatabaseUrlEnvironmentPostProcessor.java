@@ -19,30 +19,49 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         String configuredUrl = firstNonBlank(
             environment.getProperty("SPRING_DATASOURCE_URL"),
-            environment.getProperty("DATABASE_URL")
+            environment.getProperty("DATABASE_URL"),
+            environment.getProperty("DATABASE_PUBLIC_URL"),
+            environment.getProperty("DATABASE_PRIVATE_URL"),
+            environment.getProperty("POSTGRES_URL"),
+            environment.getProperty("POSTGRESQL_URL")
         );
 
-        if (configuredUrl == null) {
-            return;
+        DatabaseCredentials credentials = parseCredentials(configuredUrl);
+        String normalizedUrl = configuredUrl == null ? buildJdbcUrlFromParts(environment) : normalizeJdbcUrl(configuredUrl);
+
+        if (normalizedUrl == null || normalizedUrl.isBlank()) {
+            normalizedUrl = "jdbc:postgresql://localhost:5432/apiautopsy";
         }
 
-        String normalizedUrl = normalizeJdbcUrl(configuredUrl);
-        if (normalizedUrl == null || normalizedUrl.isBlank()) {
+        if (credentials.username() == null || credentials.password() == null) {
+            credentials = new DatabaseCredentials(
+                firstNonBlank(credentials.username(), environment.getProperty("SPRING_DATASOURCE_USERNAME"), environment.getProperty("DATABASE_USERNAME"), environment.getProperty("PGUSER"), environment.getProperty("POSTGRES_USER")),
+                firstNonBlank(credentials.password(), environment.getProperty("SPRING_DATASOURCE_PASSWORD"), environment.getProperty("DATABASE_PASSWORD"), environment.getProperty("PGPASSWORD"), environment.getProperty("POSTGRES_PASSWORD"))
+            );
+        }
+
+        if (credentials.username() == null || credentials.password() == null) {
             return;
         }
 
         Map<String, Object> properties = new HashMap<>();
         properties.put("spring.datasource.url", normalizedUrl);
-
-        DatabaseCredentials credentials = parseCredentials(configuredUrl);
-        if (isBlank(environment.getProperty("SPRING_DATASOURCE_USERNAME")) && credentials.username() != null) {
-            properties.put("spring.datasource.username", credentials.username());
-        }
-        if (isBlank(environment.getProperty("SPRING_DATASOURCE_PASSWORD")) && credentials.password() != null) {
-            properties.put("spring.datasource.password", credentials.password());
-        }
+        properties.put("spring.datasource.username", credentials.username());
+        properties.put("spring.datasource.password", credentials.password());
 
         environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, properties));
+    }
+
+    private static String buildJdbcUrlFromParts(ConfigurableEnvironment environment) {
+        String host = firstNonBlank(environment.getProperty("PGHOST"), environment.getProperty("POSTGRES_HOST"));
+        String database = firstNonBlank(environment.getProperty("PGDATABASE"), environment.getProperty("POSTGRES_DB"), environment.getProperty("DATABASE_NAME"));
+        if (isBlank(host) || isBlank(database)) {
+            return null;
+        }
+
+        String port = firstNonBlank(environment.getProperty("PGPORT"), environment.getProperty("POSTGRES_PORT"), "5432");
+        String sslMode = firstNonBlank(environment.getProperty("PGSSLMODE"), environment.getProperty("POSTGRES_SSLMODE"), "require");
+        return "jdbc:postgresql://" + host + ":" + port + "/" + database + "?sslmode=" + sslMode;
     }
 
     private static String normalizeJdbcUrl(String url) {
@@ -104,6 +123,9 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
     }
 
     private static DatabaseCredentials parseCredentials(String url) {
+        if (isBlank(url)) {
+            return new DatabaseCredentials(null, null);
+        }
         String uriValue = url.startsWith("jdbc:") ? url.substring("jdbc:".length()) : url;
         if (uriValue.startsWith("postgres://")) {
             uriValue = "postgresql://" + uriValue.substring("postgres://".length());
@@ -128,11 +150,13 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         }
     }
 
-    private static String firstNonBlank(String first, String second) {
-        if (!isBlank(first)) {
-            return first;
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (!isBlank(value)) {
+                return value;
+            }
         }
-        return isBlank(second) ? null : second;
+        return null;
     }
 
     private static boolean isBlank(String value) {
