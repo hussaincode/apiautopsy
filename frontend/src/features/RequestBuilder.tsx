@@ -1,15 +1,16 @@
 import { KeyRound, Send, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button, FieldLabel, Input, Select } from '../components/ui';
-import type { ApiRequest, Collection, HttpMethod } from '../types/domain';
+import type { ApiRequest, Certificate, Collection, HttpMethod } from '../types/domain';
 import type { BuilderTab, RawBodyFormat, RequestBodyMode, RequestDraft } from './dashboardTypes';
 
 const methods: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-const builderTabs: BuilderTab[] = ['params', 'headers', 'body', 'auth'];
+const builderTabs: BuilderTab[] = ['params', 'headers', 'body', 'auth', 'certificates'];
 
 export function RequestBuilder({
   activeTab,
   collections,
+  certificates,
   draft,
   isSending,
   onDraft,
@@ -19,6 +20,7 @@ export function RequestBuilder({
 }: {
   activeTab: BuilderTab;
   collections: Collection[];
+  certificates: Certificate[];
   draft: RequestDraft;
   isSending: boolean;
   onDraft: (draft: RequestDraft) => void;
@@ -27,28 +29,28 @@ export function RequestBuilder({
   onTab: (tab: BuilderTab) => void;
 }) {
   return (
-    <section className="border-b border-[#e6e6e6] bg-white">
+    <section className="border-b border-slate-800 bg-[#0c0c0c]">
       <div className="space-y-3 p-5">
         <div className="grid gap-2 lg:grid-cols-[128px_1fr_112px]">
-          <Select className="rounded border-[#dcdcdc] bg-[#fafafa] text-[#333] focus:border-[#2563eb]" value={draft.method} onChange={(event) => onDraft({ ...draft, method: event.target.value as HttpMethod })}>
+          <Select className="rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.method} onChange={(event) => onDraft({ ...draft, method: event.target.value as HttpMethod })}>
             {methods.map((method) => <option key={method}>{method}</option>)}
           </Select>
-          <Input className="rounded border-[#dcdcdc] bg-white text-[#333] placeholder:text-[#aaa] focus:border-[#2563eb]" value={draft.url} onChange={(event) => onDraft({ ...draft, url: event.target.value })} placeholder="https://api.company.com/v1/users" />
-          <button className="flex h-10 items-center justify-center gap-2 rounded bg-[#2563eb] px-4 text-sm font-semibold text-white hover:bg-[#1d4ed8] disabled:opacity-50" disabled={isSending} onClick={onSend}><Send size={16} />{isSending ? 'Sending' : 'Send'}</button>
+          <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500" value={draft.url} onChange={(event) => onDraft({ ...draft, url: event.target.value })} placeholder="https://api.company.com/v1/users" />
+          <button className="flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-400 disabled:opacity-50" disabled={isSending} onClick={onSend}><Send size={16} />{isSending ? 'Sending' : 'Send'}</button>
         </div>
 
         <div className="grid gap-2 lg:grid-cols-[1fr_260px]">
-          <Input className="rounded border-[#dcdcdc] bg-white text-[#333] placeholder:text-[#aaa] focus:border-[#2563eb]" value={draft.name} onChange={(event) => onDraft({ ...draft, name: event.target.value })} placeholder="Request name" />
-          <Select className="rounded border-[#dcdcdc] bg-[#fafafa] text-[#333] focus:border-[#2563eb]" value={draft.collectionId} onChange={(event) => onDraft({ ...draft, collectionId: event.target.value })}>
+          <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500" value={draft.name} onChange={(event) => onDraft({ ...draft, name: event.target.value })} placeholder="Request name" />
+          <Select className="rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.collectionId} onChange={(event) => onDraft({ ...draft, collectionId: event.target.value })}>
             <option value="">Unfiled</option>
             {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
           </Select>
         </div>
       </div>
 
-      <div className="flex border-y border-[#e6e6e6] px-5">
+      <div className="flex border-y border-slate-800 px-5">
         {builderTabs.map((tab) => (
-          <button key={tab} onClick={() => onTab(tab)} className={`h-11 border-b-2 px-4 text-sm font-medium capitalize ${activeTab === tab ? 'border-[#2563eb] text-[#222]' : 'border-transparent text-[#777] hover:text-[#333]'}`}>
+          <button key={tab} onClick={() => onTab(tab)} className={`h-11 border-b-2 px-4 text-sm font-medium capitalize transition ${activeTab === tab ? 'border-indigo-400 text-slate-50' : 'border-transparent text-slate-400 hover:text-slate-100'}`}>
             {tab}
           </button>
         ))}
@@ -59,7 +61,7 @@ export function RequestBuilder({
         {activeTab === 'headers' && <JsonEditor title="Headers" helper="Add request headers as JSON key/value pairs." value={draft.headers} onChange={(headers) => onDraft({ ...draft, headers })} />}
         {activeTab === 'body' && (
           <>
-            <div className="mb-4 flex flex-wrap items-center gap-5 text-sm text-[#555]">
+            <div className="mb-4 flex flex-wrap items-center gap-5 text-sm text-slate-300">
               {bodyModes.map((mode) => (
                 <label key={mode.value} className="flex items-center gap-2">
                   <input type="radio" checked={draft.bodyMode === mode.value} onChange={() => onDraft({ ...draft, bodyMode: mode.value })} />
@@ -67,17 +69,18 @@ export function RequestBuilder({
                 </label>
               ))}
               {draft.bodyMode === 'raw' && (
-                <select className="h-8 rounded border border-[#dcdcdc] bg-[#fafafa] px-2 text-sm text-[#2563eb]" value={draft.rawBodyFormat} onChange={(event) => onDraft({ ...draft, rawBodyFormat: event.target.value as RawBodyFormat })}>
+                <select className="h-8 rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm text-indigo-300" value={draft.rawBodyFormat} onChange={(event) => onDraft({ ...draft, rawBodyFormat: event.target.value as RawBodyFormat })}>
                   <option>JSON</option>
                   <option>Text</option>
                 </select>
               )}
-              {draft.bodyMode === 'raw' && draft.rawBodyFormat === 'JSON' && <button className="ml-auto text-sm font-semibold text-[#2563eb]" onClick={() => onDraft({ ...draft, body: beautifyJson(draft.body) })}>Beautify</button>}
+              {draft.bodyMode === 'raw' && draft.rawBodyFormat === 'JSON' && <button className="ml-auto text-sm font-semibold text-indigo-300 hover:text-indigo-200" onClick={() => onDraft({ ...draft, body: beautifyJson(draft.body) })}>Beautify</button>}
             </div>
             <BodyEditor draft={draft} onDraft={onDraft} />
           </>
         )}
         {activeTab === 'auth' && <AuthPanel draft={draft} onDraft={onDraft} />}
+        {activeTab === 'certificates' && <CertificatesPanel certificates={certificates} draft={draft} onDraft={onDraft} />}
       </div>
     </section>
   );
@@ -94,10 +97,10 @@ const bodyModes: { value: RequestBodyMode; label: string }[] = [
 
 function BodyEditor({ draft, onDraft }: { draft: RequestDraft; onDraft: (draft: RequestDraft) => void }) {
   if (draft.bodyMode === 'none') {
-    return <div className="rounded border border-dashed border-[#d6e4ff] bg-gradient-to-br from-[#f8fbff] to-white p-8 text-center text-sm text-[#64748b]">No body will be sent with this request.</div>;
+    return <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/70 p-8 text-center text-sm text-slate-400">No body will be sent with this request.</div>;
   }
   if (draft.bodyMode === 'binary') {
-    return <div className="rounded border border-dashed border-[#d6e4ff] bg-gradient-to-br from-[#f8fbff] to-white p-8 text-center text-sm text-[#64748b]">Binary upload support is staged for the API client. Save metadata here and use raw/form-data for MVP calls.</div>;
+    return <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/70 p-8 text-center text-sm text-slate-400">Binary upload support is staged for the API client. Save metadata here and use raw/form-data for MVP calls.</div>;
   }
   if (draft.bodyMode === 'form-data') {
     return <JsonEditor title="Form data" helper={'Enter key/value JSON. Example: { "fileName": "report.pdf" }'} value={draft.body} onChange={(body) => onDraft({ ...draft, body })} />;
@@ -123,10 +126,10 @@ function JsonEditor({ title, helper, value, onChange }: { title: string; helper:
   return (
     <div>
       <div className="mb-3">
-        <div className="text-xs font-semibold uppercase text-[#999]">{title}</div>
-        <p className="mt-1 text-sm text-[#777]">{helper}</p>
+        <div className="text-xs font-semibold uppercase text-slate-500">{title}</div>
+        <p className="mt-1 text-sm text-slate-400">{helper}</p>
       </div>
-      <textarea className="h-40 w-full resize-none rounded border border-[#dedede] bg-[#fbfbfb] p-4 font-mono text-sm leading-6 text-[#333] outline-none focus:border-[#2563eb]" value={value} onChange={(event) => onChange(event.target.value)} />
+      <textarea className="h-40 w-full resize-none rounded-xl border border-slate-700 bg-slate-950 p-4 font-mono text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -136,17 +139,17 @@ function AuthPanel({ draft, onDraft }: { draft: RequestDraft; onDraft: (draft: R
     <div className="grid gap-5 xl:grid-cols-[280px_1fr]">
       <div>
         <FieldLabel>Authorization type</FieldLabel>
-        <Select className="w-full border-[#dcdcdc] bg-[#fafafa] text-[#333] focus:border-[#2563eb]" value={draft.authType} onChange={(event) => onDraft({ ...draft, authType: event.target.value as ApiRequest['authType'] })}>
+        <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.authType} onChange={(event) => onDraft({ ...draft, authType: event.target.value as ApiRequest['authType'] })}>
           <option value="NONE">No auth</option>
           <option value="BEARER">Bearer token</option>
           <option value="API_KEY">API key</option>
           <option value="BASIC">Basic auth</option>
         </Select>
-        <p className="mt-3 text-sm leading-6 text-[#777]">Sensitive auth values are encrypted before they are stored by the backend.</p>
+        <p className="mt-3 text-sm leading-6 text-slate-400">Sensitive auth values are encrypted before they are stored by the backend.</p>
       </div>
 
-      <div className="rounded border border-[#e6e6e6] bg-[#fbfbfb] p-4">
-        {draft.authType === 'NONE' && <div className="flex items-center gap-3 text-[#777]"><ShieldCheck size={20} />This request will be sent without authentication.</div>}
+      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+        {draft.authType === 'NONE' && <div className="flex items-center gap-3 text-slate-400"><ShieldCheck size={20} />This request will be sent without authentication.</div>}
         {draft.authType === 'BEARER' && <SecretInput icon={<KeyRound size={16} />} label="Bearer token" value={draft.authToken} onChange={(authToken) => onDraft({ ...draft, authToken })} />}
         {draft.authType === 'API_KEY' && (
           <div className="grid gap-3 md:grid-cols-2">
@@ -170,9 +173,27 @@ function SecretInput({ icon, label, type = 'text', value, onChange }: { icon?: R
     <label className="block">
       <FieldLabel>{label}</FieldLabel>
       <div className="relative">
-        {icon && <span className="absolute left-3 top-3 text-[#999]">{icon}</span>}
-        <Input className={`w-full border-[#dcdcdc] bg-white text-[#333] focus:border-[#2563eb] ${icon ? 'pl-9' : ''}`} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+        {icon && <span className="absolute left-3 top-3 text-slate-500">{icon}</span>}
+        <Input className={`w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500 ${icon ? 'pl-9' : ''}`} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
       </div>
     </label>
+  );
+}
+
+function CertificatesPanel({ certificates, draft, onDraft }: { certificates: Certificate[]; draft: RequestDraft; onDraft: (draft: RequestDraft) => void }) {
+  return (
+    <div className="grid gap-5 xl:grid-cols-[280px_1fr]">
+      <div>
+        <FieldLabel>Client certificate</FieldLabel>
+        <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.certificateId} onChange={(event) => onDraft({ ...draft, certificateId: event.target.value })}>
+          <option value="">No client certificate</option>
+          {certificates.map((certificate) => <option key={certificate.id} value={certificate.id}>{certificate.name}</option>)}
+        </Select>
+        <p className="mt-3 text-sm leading-6 text-slate-400">Upload certificates from Settings, then attach one here for mutual TLS requests.</p>
+      </div>
+      <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/70 p-5 text-sm text-slate-400">
+        {certificates.length === 0 ? 'No certificates uploaded yet. Open Settings to add .pem, .crt, or .key files.' : 'The selected certificate id will be saved with this request and sent to the backend.'}
+      </div>
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { Bell, ChevronDown, Copy, FileCode2, Plus, Search, Settings, UserPlus } 
 import { Button, EmptyState, Input } from '../components/ui';
 import {
   useCollections,
+  useCertificates,
   useCreateCollection,
   useCreateRequest,
   useCreateSchedule,
@@ -37,6 +38,7 @@ export function Dashboard() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [toast, setToast] = useState('');
+  const [profileOpen, setProfileOpen] = useState(false);
   const [liveExecution, setLiveExecution] = useState<Execution | undefined>();
   const [openTabIds, setOpenTabIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -50,6 +52,7 @@ export function Dashboard() {
   const requests = useRequests(workspaceId);
   const schedules = useSchedules(workspaceId);
   const executions = useExecutions(workspaceId);
+  const certificates = useCertificates(workspaceId);
   const createCollection = useCreateCollection(workspaceId);
   const createRequest = useCreateRequest(workspaceId);
   const updateRequest = useUpdateRequest(workspaceId);
@@ -100,6 +103,7 @@ export function Dashboard() {
       bodyType: resolveBodyType(draft),
       body: resolveBody(draft, parseJson),
       authType: draft.authType,
+      certificateId: draft.certificateId || undefined,
       auth
     };
   }
@@ -162,12 +166,18 @@ export function Dashboard() {
     setToast('Import complete');
   }
 
-  function newRequest() {
+  async function newRequest() {
     const collectionId = selectedCollectionId === 'all' ? '' : selectedCollectionId;
-    setSelectedRequestId(undefined);
     setLiveExecution(undefined);
-    setDraft(emptyRequestDraft(collectionId));
     setActivePage('requests');
+    const payload = {
+      ...toPayloadFromDraft(emptyRequestDraft(collectionId), parseJson),
+      name: `New Request ${requestList.length + 1}`
+    };
+    const saved = await createRequest.mutateAsync(payload);
+    openRequest(saved.id);
+    setDraft(fromRequest(saved as ApiRequest));
+    setToast('New request created');
   }
 
   function openRequest(id: string) {
@@ -204,8 +214,8 @@ export function Dashboard() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-white text-[#222]">
-      <TopBar email={email} onInvite={() => setInviteModalOpen(true)} onSettings={() => setActivePage('settings')} />
+    <main className="h-screen overflow-hidden bg-[#0c0c0c] text-slate-100">
+      <TopBar email={email} profileOpen={profileOpen} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => setActivePage('settings')} />
       <div className="flex">
       <Sidebar
         activePage={activePage}
@@ -230,9 +240,9 @@ export function Dashboard() {
 
       <section className="min-w-0 flex-1">
         {activePage === 'requests' && (
-          <div className="h-[calc(100vh-48px)] bg-white">
+          <div className="h-[calc(100vh-48px)] bg-[#0c0c0c]">
             <section className="min-w-0 overflow-auto">
-              <RequestTabs openIds={openTabIds} requests={requestList} selectedId={selectedRequestId} onClose={closeTab} onSelect={openRequest} />
+              <RequestTabs openIds={openTabIds} requests={requestList} selectedId={selectedRequestId} onClose={closeTab} onNew={newRequest} onSelect={openRequest} />
               {draft ? (
                 <>
                   <RequestHeader
@@ -246,6 +256,7 @@ export function Dashboard() {
                   />
                   <RequestBuilder
                     activeTab={builderTab}
+                    certificates={certificates.data ?? []}
                     collections={collectionList}
                     draft={draft}
                     isSending={execute.isPending || createRequest.isPending || updateRequest.isPending}
@@ -280,10 +291,10 @@ export function Dashboard() {
       </div>
 
       {collectionModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-          <div className="w-full max-w-md rounded border border-[#dcdcdc] bg-white p-5 shadow-2xl">
-            <div className="mb-4 font-semibold text-[#222]">Create collection</div>
-            <Input className="mb-4 w-full border-[#dcdcdc] bg-white text-[#333] focus:border-[#2563eb]" autoFocus placeholder="Payments API" value={collectionName} onChange={(event) => setCollectionName(event.target.value)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-2xl">
+            <div className="mb-4 font-semibold text-slate-100">Create collection</div>
+            <Input className="mb-4 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" autoFocus placeholder="Payments API" value={collectionName} onChange={(event) => setCollectionName(event.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setCollectionModalOpen(false)}>Cancel</Button>
               <Button variant="primary" disabled={createCollection.isPending} onClick={createCollectionFromModal}><Plus size={16} />Create</Button>
@@ -292,10 +303,10 @@ export function Dashboard() {
         </div>
       )}
       {inviteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-          <div className="w-full max-w-md rounded border border-[#dcdcdc] bg-white p-5 shadow-2xl">
-            <div className="mb-4 font-semibold text-[#222]">Invite teammate</div>
-            <Input className="mb-4 w-full border-[#dcdcdc] bg-white text-[#333] focus:border-[#2563eb]" autoFocus placeholder="teammate@company.com" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-2xl">
+            <div className="mb-4 font-semibold text-slate-100">Invite teammate</div>
+            <Input className="mb-4 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" autoFocus placeholder="teammate@company.com" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setInviteModalOpen(false)}>Cancel</Button>
               <Button variant="primary" disabled={inviteUser.isPending} onClick={inviteWorkspaceUser}><UserPlus size={16} />Invite</Button>
@@ -308,10 +319,12 @@ export function Dashboard() {
   );
 }
 
-function TopBar({ email, onInvite, onSettings }: { email?: string | null; onInvite: () => void; onSettings: () => void }) {
+function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings }: { email?: string | null; profileOpen: boolean; onInvite: () => void; onLogout: () => void; onProfile: () => void; onSettings: () => void }) {
+  const displayEmail = email ?? 'user@apiautopsy.com';
+  const displayName = displayEmail.split('@')[0].replace(/[._-]+/g, ' ');
   return (
-    <header className="flex h-12 items-center border-b border-[#e6e6e6] bg-white px-3 text-[#333]">
-      <div className="mr-4 flex items-center gap-2 text-[#aaa]">
+    <header className="flex h-12 items-center border-b border-slate-800 bg-[#111827] px-3 text-slate-100 shadow-lg shadow-black/20">
+      <div className="mr-4 flex items-center gap-2 text-slate-500">
         <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
         <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
         <span className="h-3 w-3 rounded-full bg-[#28c840]" />
@@ -323,16 +336,28 @@ function TopBar({ email, onInvite, onSettings }: { email?: string | null; onInvi
       </nav>
       <div className="mx-auto w-full max-w-md px-6">
         <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-[#999]" size={16} />
-          <input className="h-9 w-full rounded border border-[#dedede] bg-[#fafafa] pl-9 pr-16 text-sm outline-none placeholder:text-[#999] focus:border-[#2563eb]" placeholder="Search APIAutopsy" />
-          <span className="absolute right-3 top-2 rounded bg-white px-1.5 text-xs text-[#aaa]">⌘ K</span>
+          <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
+          <input className="h-9 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-16 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-indigo-500" placeholder="Search APIAutopsy" />
+          <span className="absolute right-3 top-2 rounded bg-slate-900 px-1.5 text-xs text-slate-500">⌘ K</span>
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <button className="flex h-8 items-center gap-1 rounded bg-[#2563eb] px-3 text-sm font-semibold text-white" onClick={onInvite}><UserPlus size={15} />Invite</button>
-        <button className="text-[#777] hover:text-[#333]" onClick={onSettings}><Settings size={19} /></button>
-        <button className="text-[#777] hover:text-[#333]"><Bell size={18} /></button>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0f766e] text-sm font-bold text-white">{(email ?? 'U').slice(0, 1).toUpperCase()}</div>
+        <button className="flex h-8 items-center gap-1 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white transition hover:bg-indigo-400" onClick={onInvite}><UserPlus size={15} />Invite</button>
+        <button className="text-slate-400 transition hover:text-slate-100" onClick={onSettings}><Settings size={19} /></button>
+        <button className="text-slate-400 transition hover:text-slate-100"><Bell size={18} /></button>
+        <div className="relative">
+          <button className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white ring-2 ring-teal-400/20 transition hover:ring-teal-300/50" onClick={onProfile}>{displayEmail.slice(0, 1).toUpperCase()}</button>
+          {profileOpen && (
+            <div className="absolute right-0 top-10 z-50 w-64 rounded-2xl border border-slate-800 bg-[#111827] p-3 shadow-2xl shadow-black/40">
+              <div className="px-2 py-2">
+                <div className="text-sm font-semibold capitalize text-slate-100">{displayName}</div>
+                <div className="mt-1 truncate text-xs text-slate-400">{displayEmail}</div>
+              </div>
+              <div className="my-2 h-px bg-slate-800" />
+              <button className="w-full rounded-xl px-3 py-2 text-left text-sm font-semibold text-red-300 transition hover:bg-red-950/40" onClick={onLogout}>Logout</button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
@@ -340,25 +365,25 @@ function TopBar({ email, onInvite, onSettings }: { email?: string | null; onInvi
 
 function RequestHeader({ collection, draft, onCopy, onSave }: { collection?: Collection; draft: RequestDraft; onCopy: () => void; onSave: () => void }) {
   return (
-    <div className="flex h-[74px] items-center justify-between border-b border-[#e6e6e6] bg-white px-6">
+    <div className="flex h-[74px] items-center justify-between border-b border-slate-800 bg-[#0c0c0c] px-6">
       <div className="min-w-0">
-        <div className="mb-1 flex items-center gap-2 text-sm text-[#777]">
-          <FileCode2 size={18} className="text-[#0f766e]" />
+        <div className="mb-1 flex items-center gap-2 text-sm text-slate-400">
+          <FileCode2 size={18} className="text-teal-400" />
           <span>APIAutopsy</span>
           <span>/</span>
           <span>{collection?.name ?? 'Unfiled'}</span>
         </div>
-        <div className="truncate text-lg font-semibold text-[#222]">{draft.name}</div>
+        <div className="truncate text-lg font-semibold text-slate-100">{draft.name}</div>
       </div>
       <div className="flex items-center gap-2">
-        <select className="h-10 rounded border border-[#dedede] bg-[#fafafa] px-3 text-sm text-[#555]">
+        <select className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-300">
           <option>No environment</option>
           <option>Local</option>
           <option>Staging</option>
           <option>Production</option>
         </select>
-        <button className="h-10 rounded border border-[#dcdcdc] px-3 text-sm font-semibold text-[#555] hover:bg-[#f5f5f5]" onClick={onSave}>Save</button>
-        <button className="flex h-10 items-center gap-2 rounded border border-[#dcdcdc] px-3 text-sm font-semibold text-[#555] hover:bg-[#f5f5f5]" onClick={onCopy}>Share <Copy size={15} /></button>
+        <button className="h-10 rounded-xl border border-slate-700 px-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900" onClick={onSave}>Save</button>
+        <button className="flex h-10 items-center gap-2 rounded-xl border border-slate-700 px-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900" onClick={onCopy}>Share <Copy size={15} /></button>
       </div>
     </div>
   );
@@ -398,7 +423,25 @@ function fromRequest(request: ApiRequest): RequestDraft {
     headers: JSON.stringify(request.headers ?? {}, null, 2),
     bodyMode: inferredMode,
     body: JSON.stringify(request.body ?? {}, null, 2),
-    authType: request.authType
+    authType: request.authType,
+    certificateId: request.certificateId ?? ''
+  };
+}
+
+function toPayloadFromDraft(draft: RequestDraft, parseJson: (value: string) => Record<string, unknown>) {
+  const auth = buildAuthPayload(draft);
+  return {
+    collectionId: draft.collectionId || undefined,
+    name: draft.name.trim() || 'Untitled Request',
+    method: draft.method,
+    url: draft.url.trim(),
+    headers: normalizeHeaders(parseJson(draft.headers), draft),
+    queryParams: parseJson(draft.params),
+    bodyType: resolveBodyType(draft),
+    body: resolveBody(draft, parseJson),
+    authType: draft.authType,
+    certificateId: draft.certificateId || undefined,
+    auth
   };
 }
 

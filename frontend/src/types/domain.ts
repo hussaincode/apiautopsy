@@ -3,6 +3,7 @@ export type ScheduleType = 'INTERVAL' | 'CRON';
 
 export interface Workspace { id: string; name: string; role: 'OWNER' | 'ADMIN' | 'MEMBER'; }
 export interface Collection { id: string; parentId?: string; name: string; description?: string; }
+export interface Certificate { id: string; name: string; }
 export interface ApiRequest {
   id: string;
   collectionId?: string;

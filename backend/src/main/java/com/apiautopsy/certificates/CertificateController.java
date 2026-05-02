@@ -6,8 +6,11 @@ import com.apiautopsy.security.SecurityUtils;
 import com.apiautopsy.workspaces.WorkspaceRepository;
 import com.apiautopsy.workspaces.WorkspaceService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,11 +38,28 @@ public class CertificateController {
     @PostMapping
     CertificateDtos.CertificateResponse create(@PathVariable UUID workspaceId, @Valid @RequestBody CertificateDtos.CertificateRequest request) {
         workspaceService.requireMember(workspaceId, SecurityUtils.currentUser().id());
+        return createCertificate(workspaceId, request.name(), request.certificatePem(), request.privateKeyPem());
+    }
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    CertificateDtos.CertificateResponse createMultipart(
+            @PathVariable UUID workspaceId,
+            @RequestParam String name,
+            @RequestPart("certificate") MultipartFile certificate,
+            @RequestPart(value = "privateKey", required = false) MultipartFile privateKey
+    ) throws IOException {
+        workspaceService.requireMember(workspaceId, SecurityUtils.currentUser().id());
+        String certificatePem = new String(certificate.getBytes());
+        String privateKeyPem = privateKey == null || privateKey.isEmpty() ? null : new String(privateKey.getBytes());
+        return createCertificate(workspaceId, name, certificatePem, privateKeyPem);
+    }
+
+    private CertificateDtos.CertificateResponse createCertificate(UUID workspaceId, String name, String certificatePem, String privateKeyPem) {
         CertificateEntity cert = new CertificateEntity();
         cert.workspace = workspaces.findById(workspaceId).orElseThrow(() -> new NotFoundException("Workspace not found"));
-        cert.name = request.name();
-        cert.certificatePemEncrypted = crypto.encrypt(request.certificatePem());
-        cert.privateKeyPemEncrypted = crypto.encrypt(request.privateKeyPem());
+        cert.name = name;
+        cert.certificatePemEncrypted = crypto.encrypt(certificatePem);
+        cert.privateKeyPemEncrypted = crypto.encrypt(privateKeyPem);
         certificates.save(cert);
         return new CertificateDtos.CertificateResponse(cert.id, cert.name);
     }

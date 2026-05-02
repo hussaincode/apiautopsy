@@ -1,7 +1,7 @@
 import type { ApiRequest, HttpMethod } from '../types/domain';
 
 export type AppPage = 'requests' | 'scheduler' | 'flows' | 'settings';
-export type BuilderTab = 'params' | 'headers' | 'body' | 'auth';
+export type BuilderTab = 'params' | 'headers' | 'body' | 'auth' | 'certificates';
 export type RequestBodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
 export type RawBodyFormat = 'JSON' | 'Text';
 
@@ -22,6 +22,7 @@ export interface RequestDraft {
   apiKeyValue: string;
   basicUsername: string;
   basicPassword: string;
+  certificateId: string;
 }
 
 export function emptyRequestDraft(collectionId = ''): RequestDraft {
@@ -41,6 +42,7 @@ export function emptyRequestDraft(collectionId = ''): RequestDraft {
     apiKeyHeader: 'X-API-Key',
     apiKeyValue: '',
     basicUsername: '',
-    basicPassword: ''
+    basicPassword: '',
+    certificateId: ''
   };
 }

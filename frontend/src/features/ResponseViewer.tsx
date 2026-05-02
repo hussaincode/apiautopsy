@@ -13,7 +13,7 @@ export function ResponseViewer({ execution, isLoading }: { execution?: Execution
   }
 
   return (
-    <div className="bg-white p-5">
+    <div className="bg-[#0c0c0c] p-5">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <ResponseMetric icon={<Server size={16} />} label="Status" value={isLoading ? 'Pending' : execution?.statusCode ?? 'Error'} tone={execution?.success ? 'good' : execution ? 'bad' : 'neutral'} />
         <ResponseMetric icon={<Clock size={16} />} label="Time" value={isLoading ? '...' : `${execution?.responseTimeMs ?? 0} ms`} />
@@ -21,13 +21,13 @@ export function ResponseViewer({ execution, isLoading }: { execution?: Execution
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
-        <section className="min-h-72 overflow-hidden rounded border border-[#e6e6e6] bg-[#fbfbfb]">
-          <div className="border-b border-[#e6e6e6] px-4 py-3 text-sm font-semibold text-[#333]">Body</div>
-          <pre className="max-h-[420px] overflow-auto p-4 text-sm leading-6 text-[#333]">{isLoading ? 'Waiting for response...' : execution?.responseBody ?? execution?.errorMessage ?? ''}</pre>
+        <section className="min-h-72 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
+          <div className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">Body</div>
+          <pre className="max-h-[420px] overflow-auto p-4 text-sm leading-6 text-slate-100">{isLoading ? 'Waiting for response...' : execution?.responseBody ?? execution?.errorMessage ?? ''}</pre>
         </section>
-        <section className="overflow-hidden rounded border border-[#e6e6e6] bg-[#fbfbfb]">
-          <div className="border-b border-[#e6e6e6] px-4 py-3 text-sm font-semibold text-[#333]">Headers</div>
-          <pre className="max-h-[420px] overflow-auto p-4 text-xs leading-5 text-[#555]">{execution ? JSON.stringify(execution.responseHeaders ?? {}, null, 2) : '{}'}</pre>
+        <section className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
+          <div className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">Headers</div>
+          <pre className="max-h-[420px] overflow-auto p-4 text-xs leading-5 text-slate-300">{execution ? JSON.stringify(execution.responseHeaders ?? {}, null, 2) : '{}'}</pre>
         </section>
       </div>
     </div>
@@ -35,10 +35,10 @@ export function ResponseViewer({ execution, isLoading }: { execution?: Execution
 }
 
 function ResponseMetric({ icon, label, value, tone = 'neutral' }: { icon: ReactNode; label: string; value: ReactNode; tone?: 'good' | 'bad' | 'neutral' }) {
-  const toneClass = tone === 'good' ? 'text-[#12805c]' : tone === 'bad' ? 'text-[#c7352b]' : 'text-[#333]';
+  const toneClass = tone === 'good' ? 'text-teal-300' : tone === 'bad' ? 'text-red-300' : 'text-slate-100';
   return (
-    <div className="min-w-36 rounded border border-[#e6e6e6] bg-[#fbfbfb] px-3 py-2">
-      <div className="mb-1 flex items-center gap-2 text-xs uppercase text-[#999]">{icon}{label}</div>
+    <div className="min-w-36 rounded-2xl border border-slate-800 bg-[#111827] px-3 py-2 shadow-lg shadow-black/20">
+      <div className="mb-1 flex items-center gap-2 text-xs uppercase text-slate-500">{icon}{label}</div>
       <div className={`text-lg font-semibold ${toneClass}`}>{value}</div>
     </div>
   );

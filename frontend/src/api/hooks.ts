@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { ApiRequest, Collection, Execution, ReportSummary, Schedule, Workspace } from '../types/domain';
+import type { ApiRequest, Certificate, Collection, Execution, ReportSummary, Schedule, Workspace } from '../types/domain';
 
 export function useWorkspaces() {
   return useQuery({ queryKey: ['workspaces'], queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -84,7 +84,15 @@ export function useUpdateSchedule(workspaceId?: string) {
 }
 
 export function useCreateCertificate(workspaceId?: string) {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { name: string; certificatePem: string; privateKeyPem?: string }) => (await api.post(`/workspaces/${workspaceId}/certificates`, payload)).data
+    mutationFn: async (payload: FormData) => (await api.post(`/workspaces/${workspaceId}/certificates`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['certificates', workspaceId] })
   });
+}
+
+export function useCertificates(workspaceId?: string) {
+  return useQuery({ queryKey: ['certificates', workspaceId], enabled: !!workspaceId, queryFn: async () => (await api.get<Certificate[]>(`/workspaces/${workspaceId}/certificates`)).data });
 }
