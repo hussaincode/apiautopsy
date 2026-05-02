@@ -44,6 +44,9 @@ logging:
   level:
     org.springframework.security: INFO
 management:
+  health:
+    redis:
+      enabled: ${MANAGEMENT_HEALTH_REDIS_ENABLED:false}
   endpoints:
     web:
       exposure:
