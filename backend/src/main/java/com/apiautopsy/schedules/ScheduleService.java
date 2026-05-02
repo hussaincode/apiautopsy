@@ -1,16 +1,23 @@
 package com.apiautopsy.schedules;
 
 import com.apiautopsy.common.NotFoundException;
+import com.apiautopsy.collections.Collection;
+import com.apiautopsy.collections.CollectionRepository;
+import com.apiautopsy.executions.Execution;
+import com.apiautopsy.executions.ExecutionDtos;
+import com.apiautopsy.executions.ExecutionRepository;
 import com.apiautopsy.executions.ExecutionService;
 import com.apiautopsy.requests.ApiRequest;
 import com.apiautopsy.requests.ApiRequestRepository;
 import com.apiautopsy.workspaces.WorkspaceService;
+import com.apiautopsy.workflows.WorkflowService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -20,14 +27,20 @@ import java.util.UUID;
 public class ScheduleService {
     private final ScheduleRepository schedules;
     private final ApiRequestRepository requests;
+    private final CollectionRepository collections;
     private final WorkspaceService workspaceService;
     private final ExecutionService executionService;
+    private final ExecutionRepository executions;
+    private final WorkflowService workflowService;
 
-    public ScheduleService(ScheduleRepository schedules, ApiRequestRepository requests, WorkspaceService workspaceService, ExecutionService executionService) {
+    public ScheduleService(ScheduleRepository schedules, ApiRequestRepository requests, CollectionRepository collections, WorkspaceService workspaceService, ExecutionService executionService, ExecutionRepository executions, WorkflowService workflowService) {
         this.schedules = schedules;
         this.requests = requests;
+        this.collections = collections;
         this.workspaceService = workspaceService;
         this.executionService = executionService;
+        this.executions = executions;
+        this.workflowService = workflowService;
     }
 
     public List<ScheduleDtos.ScheduleResponse> list(UUID userId, UUID workspaceId) {
@@ -38,13 +51,32 @@ public class ScheduleService {
     @Transactional
     public ScheduleDtos.ScheduleResponse create(UUID userId, UUID workspaceId, ScheduleDtos.ScheduleRequest dto) {
         workspaceService.requireMember(workspaceId, userId);
-        ApiRequest request = requests.findByIdAndWorkspaceId(dto.apiRequestId(), workspaceId).orElseThrow(() -> new NotFoundException("API request not found"));
         Schedule schedule = new Schedule();
-        schedule.workspace = request.workspace;
-        schedule.apiRequest = request;
+        applyTarget(schedule, workspaceId, dto);
         apply(schedule, dto);
         schedules.save(schedule);
         return toResponse(schedule);
+    }
+
+    @Transactional
+    public void delete(UUID userId, UUID workspaceId, UUID scheduleId) {
+        workspaceService.requireMember(workspaceId, userId);
+        Schedule schedule = requireSchedule(workspaceId, scheduleId);
+        schedules.delete(schedule);
+    }
+
+    public ScheduleDtos.ScheduleDetailResponse detail(UUID userId, UUID workspaceId, UUID scheduleId) {
+        workspaceService.requireMember(workspaceId, userId);
+        Schedule schedule = requireSchedule(workspaceId, scheduleId);
+        List<Execution> recent = executions.findTop100ByScheduleIdOrderByExecutedAtDesc(scheduleId);
+        Object[] row = flattenAggregate(executions.aggregateSchedule(scheduleId, Instant.now().minus(Duration.ofDays(30))));
+        long total = row[0] == null ? 0 : ((Number) row[0]).longValue();
+        long success = row[1] == null ? 0 : ((Number) row[1]).longValue();
+        double avg = row[2] == null ? 0 : ((Number) row[2]).doubleValue();
+        long failed = total - success;
+        double successRate = total == 0 ? 0 : success * 100.0 / total;
+        ScheduleDtos.ScheduleMetrics metrics = new ScheduleDtos.ScheduleMetrics(total, success, failed, successRate, total == 0 ? 0 : failed * 100.0 / total, avg);
+        return new ScheduleDtos.ScheduleDetailResponse(toResponse(schedule), metrics, recent.stream().map(this::executionResponse).toList());
     }
 
     @Transactional
@@ -52,6 +84,7 @@ public class ScheduleService {
         workspaceService.requireMember(workspaceId, userId);
         Schedule schedule = schedules.findById(scheduleId).orElseThrow(() -> new NotFoundException("Schedule not found"));
         if (!schedule.workspace.id.equals(workspaceId)) throw new NotFoundException("Schedule not found");
+        applyTarget(schedule, workspaceId, dto);
         apply(schedule, dto);
         schedule.updatedAt = Instant.now();
         return toResponse(schedule);
@@ -62,7 +95,8 @@ public class ScheduleService {
     public void runDueSchedules() {
         List<Schedule> due = schedules.findTop25ByEnabledTrueAndNextRunAtLessThanEqualOrderByNextRunAtAsc(Instant.now());
         for (Schedule schedule : due) {
-            executionService.executeScheduled(schedule.apiRequest, schedule);
+            if (schedule.targetType == ScheduleTargetType.WORKFLOW) workflowService.runScheduled(schedule.workspace.id, schedule.collection.id, schedule);
+            else executionService.executeScheduled(schedule.apiRequest, schedule);
             schedule.lastRunAt = Instant.now();
             schedule.nextRunAt = computeNext(schedule);
             schedule.updatedAt = Instant.now();
@@ -79,6 +113,25 @@ public class ScheduleService {
         schedule.nextRunAt = computeNext(schedule);
     }
 
+    private void applyTarget(Schedule schedule, UUID workspaceId, ScheduleDtos.ScheduleRequest dto) {
+        ScheduleTargetType targetType = dto.targetType() == null ? ScheduleTargetType.REQUEST : dto.targetType();
+        schedule.targetType = targetType;
+        if (targetType == ScheduleTargetType.WORKFLOW) {
+            if (dto.collectionId() == null) throw new IllegalArgumentException("Workflow schedules require collectionId");
+            Collection collection = collections.findById(dto.collectionId()).orElseThrow(() -> new NotFoundException("Collection not found"));
+            if (!collection.workspace.id.equals(workspaceId)) throw new NotFoundException("Collection not found");
+            schedule.workspace = collection.workspace;
+            schedule.collection = collection;
+            schedule.apiRequest = null;
+        } else {
+            if (dto.apiRequestId() == null) throw new IllegalArgumentException("Request schedules require apiRequestId");
+            ApiRequest request = requests.findByIdAndWorkspaceId(dto.apiRequestId(), workspaceId).orElseThrow(() -> new NotFoundException("API request not found"));
+            schedule.workspace = request.workspace;
+            schedule.apiRequest = request;
+            schedule.collection = null;
+        }
+    }
+
     private void validate(Schedule schedule) {
         if (schedule.scheduleType == ScheduleType.INTERVAL && (schedule.intervalMinutes == null || schedule.intervalMinutes < 1)) {
             throw new IllegalArgumentException("Interval schedules require intervalMinutes >= 1");
@@ -86,6 +139,12 @@ public class ScheduleService {
         if (schedule.scheduleType == ScheduleType.CRON && (schedule.cronExpression == null || !CronExpression.isValidExpression(schedule.cronExpression))) {
             throw new IllegalArgumentException("Invalid cron expression");
         }
+    }
+
+    private Schedule requireSchedule(UUID workspaceId, UUID scheduleId) {
+        Schedule schedule = schedules.findById(scheduleId).orElseThrow(() -> new NotFoundException("Schedule not found"));
+        if (!schedule.workspace.id.equals(workspaceId)) throw new NotFoundException("Schedule not found");
+        return schedule;
     }
 
     private Instant computeNext(Schedule schedule) {
@@ -97,6 +156,15 @@ public class ScheduleService {
     }
 
     private ScheduleDtos.ScheduleResponse toResponse(Schedule s) {
-        return new ScheduleDtos.ScheduleResponse(s.id, s.apiRequest.id, s.name, s.scheduleType, s.intervalMinutes, s.cronExpression, s.enabled, s.nextRunAt, s.lastRunAt);
+        return new ScheduleDtos.ScheduleResponse(s.id, s.apiRequest == null ? null : s.apiRequest.id, s.collection == null ? null : s.collection.id, s.targetType, s.name, s.scheduleType, s.intervalMinutes, s.cronExpression, s.enabled, s.nextRunAt, s.lastRunAt);
+    }
+
+    private ExecutionDtos.ExecutionResponse executionResponse(Execution e) {
+        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt);
+    }
+
+    private Object[] flattenAggregate(Object[] row) {
+        if (row != null && row.length == 1 && row[0] instanceof Object[] nested) return nested;
+        return row == null ? new Object[0] : row;
     }
 }

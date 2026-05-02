@@ -28,4 +28,14 @@ public class ScheduleController {
     ScheduleDtos.ScheduleResponse update(@PathVariable UUID workspaceId, @PathVariable UUID scheduleId, @Valid @RequestBody ScheduleDtos.ScheduleRequest request) {
         return service.update(SecurityUtils.currentUser().id(), workspaceId, scheduleId, request);
     }
+
+    @DeleteMapping("/{scheduleId}")
+    void delete(@PathVariable UUID workspaceId, @PathVariable UUID scheduleId) {
+        service.delete(SecurityUtils.currentUser().id(), workspaceId, scheduleId);
+    }
+
+    @GetMapping("/{scheduleId}/detail")
+    ScheduleDtos.ScheduleDetailResponse detail(@PathVariable UUID workspaceId, @PathVariable UUID scheduleId) {
+        return service.detail(SecurityUtils.currentUser().id(), workspaceId, scheduleId);
+    }
 }

@@ -8,11 +8,11 @@ services:
     dockerContext: ./backend
     healthCheckPath: /actuator/health
     envVars:
-      - key: DATABASE_URL
+      - key: SPRING_DATASOURCE_URL
         sync: false
-      - key: DATABASE_USERNAME
+      - key: SPRING_DATASOURCE_USERNAME
         sync: false
-      - key: DATABASE_PASSWORD
+      - key: SPRING_DATASOURCE_PASSWORD
         sync: false
       - key: REDIS_HOST
         sync: false

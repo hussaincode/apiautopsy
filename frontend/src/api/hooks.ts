@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { ApiRequest, Certificate, Collection, Execution, ReportSummary, Schedule, Workspace } from '../types/domain';
+import type { ApiRequest, Certificate, Collection, Execution, ReportSummary, Schedule, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces() {
   return useQuery({ queryKey: ['workspaces'], queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -80,6 +80,59 @@ export function useUpdateSchedule(workspaceId?: string) {
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Partial<Schedule> }) => (await api.put(`/workspaces/${workspaceId}/schedules/${id}`, payload)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['schedules', workspaceId] })
+  });
+}
+
+export function useDeleteSchedule(workspaceId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/workspaces/${workspaceId}/schedules/${id}`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
+      qc.invalidateQueries({ queryKey: ['executions', workspaceId] });
+    }
+  });
+}
+
+export function useScheduleDetail(workspaceId?: string, scheduleId?: string) {
+  return useQuery({
+    queryKey: ['schedule-detail', workspaceId, scheduleId],
+    enabled: !!workspaceId && !!scheduleId,
+    refetchInterval: 15000,
+    queryFn: async () => (await api.get<ScheduleDetail>(`/workspaces/${workspaceId}/schedules/${scheduleId}/detail`)).data
+  });
+}
+
+export function useWorkflowSteps(workspaceId?: string, collectionId?: string) {
+  return useQuery({
+    queryKey: ['workflow-steps', workspaceId, collectionId],
+    enabled: !!workspaceId && !!collectionId,
+    queryFn: async () => (await api.get<WorkflowStep[]>(`/workspaces/${workspaceId}/collections/${collectionId}/workflow/steps`)).data
+  });
+}
+
+export function useSaveWorkflowSteps(workspaceId?: string, collectionId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (steps: WorkflowStep[]) => (await api.put<WorkflowStep[]>(`/workspaces/${workspaceId}/collections/${collectionId}/workflow/steps`, steps)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflow-steps', workspaceId, collectionId] })
+  });
+}
+
+export function useRunWorkflow(workspaceId?: string, collectionId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await api.post<WorkflowRun>(`/workspaces/${workspaceId}/collections/${collectionId}/workflow/run`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workflow-runs', workspaceId, collectionId] })
+  });
+}
+
+export function useWorkflowRuns(workspaceId?: string, collectionId?: string) {
+  return useQuery({
+    queryKey: ['workflow-runs', workspaceId, collectionId],
+    enabled: !!workspaceId && !!collectionId,
+    refetchInterval: 15000,
+    queryFn: async () => (await api.get<WorkflowRun[]>(`/workspaces/${workspaceId}/collections/${collectionId}/workflow/runs`)).data
   });
 }
 

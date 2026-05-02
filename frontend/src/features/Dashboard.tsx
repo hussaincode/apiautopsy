@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, ChevronDown, Copy, FileCode2, Plus, Search, Settings, UserPlus } from 'lucide-react';
-import { Button, EmptyState, Input } from '../components/ui';
+import { Button, EmptyState, FieldLabel, Input } from '../components/ui';
 import {
   useCollections,
   useCertificates,
   useCreateCollection,
   useCreateRequest,
   useCreateSchedule,
+  useDeleteSchedule,
   useExecute,
   useExecutions,
   useInviteUser,
@@ -14,7 +15,11 @@ import {
   useSchedules,
   useUpdateRequest,
   useUpdateSchedule,
-  useWorkspaces
+  useWorkspaces,
+  useRunWorkflow,
+  useSaveWorkflowSteps,
+  useWorkflowRuns,
+  useWorkflowSteps
 } from '../api/hooks';
 import { useAuth } from '../store/auth';
 import type { ApiRequest, Collection, Execution, Schedule } from '../types/domain';
@@ -58,6 +63,7 @@ export function Dashboard() {
   const updateRequest = useUpdateRequest(workspaceId);
   const createScheduleMutation = useCreateSchedule(workspaceId);
   const updateSchedule = useUpdateSchedule(workspaceId);
+  const deleteSchedule = useDeleteSchedule(workspaceId);
   const execute = useExecute(workspaceId);
   const inviteUser = useInviteUser(workspaceId);
 
@@ -195,15 +201,27 @@ export function Dashboard() {
     }
   }
 
-  function createSchedule(payload: { apiRequestId: string; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
+  function createSchedule(payload: { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
     createScheduleMutation.mutate(payload);
+  }
+
+  async function saveSchedule(scheduleId: string | undefined, payload: { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
+    if (scheduleId) await updateSchedule.mutateAsync({ id: scheduleId, payload });
+    else await createScheduleMutation.mutateAsync(payload);
+  }
+
+  async function removeSchedule(schedule: Schedule) {
+    await deleteSchedule.mutateAsync(schedule.id);
+    setToast('Schedule deleted');
   }
 
   async function toggleSchedule(schedule: Schedule) {
     await updateSchedule.mutateAsync({
       id: schedule.id,
-      payload: {
+        payload: {
         apiRequestId: schedule.apiRequestId,
+        collectionId: schedule.collectionId,
+        targetType: schedule.targetType,
         name: schedule.name,
         scheduleType: schedule.scheduleType,
         intervalMinutes: schedule.intervalMinutes,
@@ -278,15 +296,19 @@ export function Dashboard() {
           <SchedulerPage
             executions={executions.data ?? []}
             isCreating={createScheduleMutation.isPending}
+            collections={collectionList}
             requests={requestList}
             schedules={schedules.data ?? []}
             onCreateSchedule={createSchedule}
+            onDeleteSchedule={removeSchedule}
+            onSaveSchedule={saveSchedule}
             onToggleSchedule={toggleSchedule}
+            workspaceId={workspaceId}
           />
         )}
 
         {activePage === 'settings' && <SettingsPage workspaceId={workspaceId} />}
-        {activePage === 'flows' && <FlowsPage requests={requestList} onRun={(id) => execute.mutate(id)} />}
+        {activePage === 'flows' && <FlowsPage collections={collectionList} requests={requestList} workspaceId={workspaceId} />}
       </section>
       </div>
 
@@ -389,22 +411,114 @@ function RequestHeader({ collection, draft, onCopy, onSave }: { collection?: Col
   );
 }
 
-function FlowsPage({ requests, onRun }: { requests: ApiRequest[]; onRun: (id: string) => void }) {
+function FlowsPage({ collections, requests, workspaceId }: { collections: Collection[]; requests: ApiRequest[]; workspaceId?: string }) {
+  const [collectionId, setCollectionId] = useState('');
+  const activeCollectionId = collectionId || collections[0]?.id;
+  const workflowSteps = useWorkflowSteps(workspaceId, activeCollectionId);
+  const saveSteps = useSaveWorkflowSteps(workspaceId, activeCollectionId);
+  const runWorkflow = useRunWorkflow(workspaceId, activeCollectionId);
+  const workflowRuns = useWorkflowRuns(workspaceId, activeCollectionId);
+  const collectionRequests = requests.filter((request) => request.collectionId === activeCollectionId);
+  const [draftSteps, setDraftSteps] = useState<{ apiRequestId: string; variableName: string; jsonPath: string; stopOnFailure: boolean }[]>([]);
+
+  useEffect(() => {
+    setDraftSteps((workflowSteps.data ?? []).map((step) => ({
+      apiRequestId: step.apiRequestId,
+      variableName: step.extractionRules[0]?.variableName ?? '',
+      jsonPath: step.extractionRules[0]?.jsonPath ?? '',
+      stopOnFailure: step.stopOnFailure
+    })));
+  }, [workflowSteps.data, activeCollectionId]);
+
+  function addStep() {
+    const nextRequest = collectionRequests.find((request) => !draftSteps.some((step) => step.apiRequestId === request.id)) ?? collectionRequests[0] ?? requests[0];
+    if (!nextRequest) return;
+    setDraftSteps((current) => [...current, { apiRequestId: nextRequest.id, variableName: '', jsonPath: '', stopOnFailure: true }]);
+  }
+
+  async function saveWorkflow() {
+    await saveSteps.mutateAsync(draftSteps.map((step, index) => ({
+      apiRequestId: step.apiRequestId,
+      stepOrder: index + 1,
+      stopOnFailure: step.stopOnFailure,
+      extractionRules: step.variableName && step.jsonPath ? [{ variableName: step.variableName, jsonPath: step.jsonPath }] : []
+    })));
+  }
+
   return (
-    <div className="h-[calc(100vh-48px)] bg-white p-8 text-[#222]">
-      <h1 className="text-xl font-semibold">Flows</h1>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#777]">Run saved API requests as the first step toward visual API workflows.</p>
-      <div className="mt-8 max-w-4xl rounded border border-[#e6e6e6]">
-        {requests.slice(0, 12).map((request) => (
-          <div key={request.id} className="flex items-center justify-between border-b border-[#eeeeee] px-4 py-3 last:border-b-0">
-            <div>
-              <div className="font-semibold">{request.name}</div>
-              <div className="text-xs text-[#777]">{request.method} {request.url}</div>
-            </div>
-            <button className="rounded bg-[#2563eb] px-3 py-2 text-sm font-semibold text-white" onClick={() => onRun(request.id)}>Run</button>
+    <div className="h-[calc(100vh-48px)] overflow-auto bg-[#0c0c0c] p-6 text-slate-100">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Execution Flow</h1>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">Build chained collection workflows. Extract values from one response and use them later as <span className="font-mono text-indigo-300">{'{{variableName}}'}</span>.</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-900 disabled:opacity-50" disabled={!activeCollectionId || runWorkflow.isPending} onClick={() => runWorkflow.mutate()}>{runWorkflow.isPending ? 'Running' : 'Run workflow'}</button>
+          <button className="rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50" disabled={!activeCollectionId || saveSteps.isPending} onClick={saveWorkflow}>{saveSteps.isPending ? 'Saving' : 'Save flow'}</button>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+        <section className="rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-xl shadow-black/20">
+          <FieldLabel>Collection workflow</FieldLabel>
+          <select className="mb-5 h-10 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-indigo-500" value={activeCollectionId ?? ''} onChange={(event) => setCollectionId(event.target.value)}>
+            {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
+          </select>
+
+          <div className="space-y-3">
+            {draftSteps.map((step, index) => {
+              const request = requests.find((item) => item.id === step.apiRequestId);
+              return (
+                <div key={`${step.apiRequestId}-${index}`} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="text-sm font-semibold text-slate-100">Step {index + 1}</div>
+                    <button className="text-xs font-semibold text-red-300 hover:text-red-200" onClick={() => setDraftSteps((current) => current.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>
+                  </div>
+                  <div className="grid gap-3 lg:grid-cols-[1fr_160px]">
+                    <select className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none focus:border-indigo-500" value={step.apiRequestId} onChange={(event) => setDraftSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, apiRequestId: event.target.value } : item))}>
+                      {requests.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input type="checkbox" checked={step.stopOnFailure} onChange={(event) => setDraftSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stopOnFailure: event.target.checked } : item))} />
+                      Stop on failure
+                    </label>
+                  </div>
+                  <div className="mt-2 truncate text-xs text-slate-500">{request?.method} {request?.url}</div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <input className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-indigo-500" placeholder="Variable name, e.g. token" value={step.variableName} onChange={(event) => setDraftSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, variableName: event.target.value } : item))} />
+                    <input className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 font-mono text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-indigo-500" placeholder="JSON path, e.g. $.token" value={step.jsonPath} onChange={(event) => setDraftSteps((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, jsonPath: event.target.value } : item))} />
+                  </div>
+                </div>
+              );
+            })}
+            <button className="w-full rounded-2xl border border-dashed border-slate-700 px-4 py-4 text-sm font-semibold text-slate-300 hover:border-indigo-500 hover:text-slate-100" onClick={addStep}>+ Add API step</button>
           </div>
-        ))}
-        {requests.length === 0 && <div className="p-5 text-sm text-[#777]">Save a request first, then run it from Flows.</div>}
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-xl shadow-black/20">
+          <h2 className="text-sm font-semibold text-slate-100">Workflow reporting</h2>
+          <div className="mt-4 space-y-3">
+            {(workflowRuns.data ?? []).slice(0, 8).map((run) => (
+              <div key={run.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className={run.success ? 'font-semibold text-teal-300' : 'font-semibold text-red-300'}>{run.success ? 'Success' : 'Failed'}</span>
+                  <span className="text-slate-400">{run.totalDurationMs} ms</span>
+                </div>
+                <div className="mt-1 text-xs text-slate-500">{new Date(run.startedAt).toLocaleString()}</div>
+                <div className="mt-3 space-y-2">
+                  {run.logs.map((log) => (
+                    <div key={log.id} className="grid grid-cols-[1fr_70px_70px] gap-2 text-xs">
+                      <span className="truncate text-slate-300">{log.stepOrder}. {log.stepName}</span>
+                      <span className={log.success ? 'text-teal-300' : 'text-red-300'}>{log.success ? 'OK' : 'Fail'}</span>
+                      <span className="text-slate-500">{log.responseTimeMs} ms</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {(workflowRuns.data ?? []).length === 0 && <div className="text-sm text-slate-500">Run this workflow once to see step-by-step execution logs.</div>}
+          </div>
+        </section>
       </div>
     </div>
   );

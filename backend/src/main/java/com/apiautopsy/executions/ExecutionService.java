@@ -26,11 +26,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class ExecutionService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {};
+    private static final Pattern VARIABLE = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_.-]+)\\s*}}");
     private final ApiRequestRepository requests;
     private final ExecutionRepository executions;
     private final WorkspaceService workspaceService;
@@ -58,6 +61,11 @@ public class ExecutionService {
         return executeInternal(request, schedule);
     }
 
+    @Transactional
+    public Execution executeWorkflowStep(ApiRequest request, Schedule schedule, Map<String, Object> variables) {
+        return executeInternal(renderRequest(request, variables), schedule);
+    }
+
     public List<ExecutionDtos.ExecutionResponse> history(UUID userId, UUID workspaceId) {
         workspaceService.requireMember(workspaceId, userId);
         return executions.findTop100ByWorkspaceIdOrderByExecutedAtDesc(workspaceId).stream().map(this::toResponse).toList();
@@ -65,7 +73,7 @@ public class ExecutionService {
 
     public ExecutionDtos.ReportResponse report(UUID userId, UUID workspaceId) {
         workspaceService.requireMember(workspaceId, userId);
-        Object[] row = executions.aggregateWorkspace(workspaceId, Instant.now().minus(Duration.ofDays(30)));
+        Object[] row = flattenAggregate(executions.aggregateWorkspace(workspaceId, Instant.now().minus(Duration.ofDays(30))));
         long total = row[0] == null ? 0 : ((Number) row[0]).longValue();
         long success = row[1] == null ? 0 : ((Number) row[1]).longValue();
         double avg = row[2] == null ? 0 : ((Number) row[2]).doubleValue();
@@ -106,6 +114,54 @@ public class ExecutionService {
         execution.responseTimeMs = Duration.between(started, Instant.now()).toMillis();
         executions.save(execution);
         return execution;
+    }
+
+    private ApiRequest renderRequest(ApiRequest source, Map<String, Object> variables) {
+        ApiRequest rendered = new ApiRequest();
+        rendered.id = source.id;
+        rendered.workspace = source.workspace;
+        rendered.collection = source.collection;
+        rendered.name = source.name;
+        rendered.method = source.method;
+        rendered.url = renderString(source.url, variables);
+        rendered.headers = renderMap(source.headers, variables);
+        rendered.queryParams = renderMap(source.queryParams, variables);
+        rendered.bodyType = source.bodyType;
+        rendered.body = renderMap(source.body, variables);
+        rendered.authType = source.authType;
+        rendered.authEncrypted = source.authEncrypted;
+        rendered.certificate = source.certificate;
+        return rendered;
+    }
+
+    private Map<String, Object> renderMap(Map<String, Object> source, Map<String, Object> variables) {
+        Map<String, Object> rendered = new LinkedHashMap<>();
+        source.forEach((key, value) -> rendered.put(key, renderValue(value, variables)));
+        return rendered;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object renderValue(Object value, Map<String, Object> variables) {
+        if (value instanceof String text) return renderString(text, variables);
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> rendered = new LinkedHashMap<>();
+            map.forEach((key, child) -> rendered.put(String.valueOf(key), renderValue(child, variables)));
+            return rendered;
+        }
+        if (value instanceof List<?> list) return list.stream().map(item -> renderValue(item, variables)).toList();
+        return value;
+    }
+
+    private String renderString(String value, Map<String, Object> variables) {
+        if (value == null) return null;
+        Matcher matcher = VARIABLE.matcher(value);
+        StringBuffer buffer = new StringBuffer();
+        while (matcher.find()) {
+            Object replacement = variables.get(matcher.group(1));
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement == null ? "" : String.valueOf(replacement)));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
     }
 
     private URI buildUri(ApiRequest request) {
@@ -158,6 +214,11 @@ public class ExecutionService {
     }
 
     private ExecutionDtos.ExecutionResponse toResponse(Execution e) {
-        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt);
+        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt);
+    }
+
+    private Object[] flattenAggregate(Object[] row) {
+        if (row != null && row.length == 1 && row[0] instanceof Object[] nested) return nested;
+        return row == null ? new Object[0] : row;
     }
 }

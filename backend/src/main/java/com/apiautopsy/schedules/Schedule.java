@@ -1,6 +1,7 @@
 package com.apiautopsy.schedules;
 
 import com.apiautopsy.requests.ApiRequest;
+import com.apiautopsy.collections.Collection;
 import com.apiautopsy.workspaces.Workspace;
 import jakarta.persistence.*;
 
@@ -14,8 +15,12 @@ public class Schedule {
     public UUID id;
     @ManyToOne(optional = false) @JoinColumn(name = "workspace_id")
     public Workspace workspace;
-    @ManyToOne(optional = false) @JoinColumn(name = "api_request_id")
+    @ManyToOne @JoinColumn(name = "api_request_id")
     public ApiRequest apiRequest;
+    @ManyToOne @JoinColumn(name = "collection_id")
+    public Collection collection;
+    @Enumerated(EnumType.STRING) @Column(nullable = false)
+    public ScheduleTargetType targetType = ScheduleTargetType.REQUEST;
     @Column(nullable = false)
     public String name;
     @Enumerated(EnumType.STRING) @Column(nullable = false)
