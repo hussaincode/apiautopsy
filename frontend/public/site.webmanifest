@@ -1,0 +1,16 @@
+{
+  "name": "APIAutopsy",
+  "short_name": "APIAutopsy",
+  "description": "Build, test, schedule, and monitor APIs from one secure workspace.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "theme_color": "#0C0C0C",
+  "background_color": "#0C0C0C",
+  "display": "standalone"
+}

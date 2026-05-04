@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="APIAutopsy">
+  <rect width="64" height="64" rx="16" fill="#0C0C0C"/>
+  <path d="M18 36.5a16.5 16.5 0 1 1 13.7 11.7" fill="none" stroke="#2DD4BF" stroke-width="5" stroke-linecap="round"/>
+  <path d="M41.5 43.5 53 55" fill="none" stroke="#6366F1" stroke-width="7" stroke-linecap="round"/>
+  <path d="M28 25h4v14h-4zM36 31h4v8h-4zM44 20h4v19h-4z" fill="#E5E7EB"/>
+  <circle cx="48" cy="18" r="9" fill="#111827" stroke="#2DD4BF" stroke-width="3"/>
+  <path d="m44.5 18 2.4 2.4 4.7-5.1" fill="none" stroke="#E5E7EB" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

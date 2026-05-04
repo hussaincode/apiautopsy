@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../store/auth';
 
@@ -97,9 +97,7 @@ export function AuthScreen() {
       <div className="mx-auto flex min-h-screen max-w-6xl items-center px-6">
         <section className="grid w-full gap-10 lg:grid-cols-[1fr_420px]">
           <div className="flex flex-col justify-center">
-            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-lg bg-brand text-ink">
-              <ShieldCheck size={26} />
-            </div>
+            <img className="mb-6 h-14 w-14 rounded-2xl shadow-xl shadow-teal-950/30" src="/logo-mark.svg" alt="APIAutopsy" />
             <h1 className="max-w-2xl text-5xl font-semibold tracking-normal text-white">APIAutopsy</h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">Build, test, schedule, and monitor APIs from one secure multi-tenant workspace.</p>
           </div>
