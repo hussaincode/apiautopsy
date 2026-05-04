@@ -5,9 +5,9 @@ import { useAuth } from '../store/auth';
 
 export function AuthScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('founder@apiautopsy.com');
-  const [password, setPassword] = useState('ChangeMe123!');
-  const [name, setName] = useState('APIAutopsy Founder');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const setAuth = useAuth((s) => s.setAuth);
@@ -29,6 +29,18 @@ export function AuthScreen() {
   async function submit() {
     if (submitting) return;
     setError('');
+    if (mode === 'register' && !name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (!email.trim()) {
+      setError('Please provide a valid email address.');
+      return;
+    }
+    if (!password.trim()) {
+      setError('Please enter your password.');
+      return;
+    }
     setSubmitting(true);
     try {
       const path = mode === 'login' ? '/auth/login' : '/auth/register';
@@ -58,9 +70,9 @@ export function AuthScreen() {
               <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => setMode('login')}>Login</button>
               <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => setMode('register')}>Register</button>
             </div>
-            {mode === 'register' && <input disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
-            <input disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-            <input disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+            {mode === 'register' && <input autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
+            <input autoComplete="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+            <input autoComplete={mode === 'login' ? 'current-password' : 'new-password'} disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             <button
               className="flex w-full items-center justify-center gap-2 rounded-md bg-brand px-4 py-3 font-semibold text-ink transition disabled:cursor-not-allowed disabled:opacity-70"

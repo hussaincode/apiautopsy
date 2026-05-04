@@ -235,26 +235,26 @@ export function Dashboard() {
     <main className="h-screen overflow-hidden bg-[#0c0c0c] text-slate-100">
       <TopBar email={email} profileOpen={profileOpen} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => setActivePage('settings')} />
       <div className="flex h-[calc(100vh-48px)] min-h-0">
-      <Sidebar
-        activePage={activePage}
-        collections={collectionList}
-        requests={requestList}
-        search={search}
-        selectedCollectionId={selectedCollectionId}
-        selectedRequestId={selectedRequestId}
-        userEmail={email}
-        workspaceId={workspaceId}
-        workspaces={workspaces.data ?? []}
-        onCreateCollection={() => setCollectionModalOpen(true)}
-        onImport={importCollection}
-        onLogout={logout}
-        onNewRequest={newRequest}
-        onPage={setActivePage}
-        onSearch={setSearch}
-        onSelectCollection={setSelectedCollectionId}
-        onSelectRequest={openRequest}
-        onWorkspace={setActiveWorkspace}
-      />
+        <Sidebar
+          activePage={activePage}
+          collections={collectionList}
+          requests={requestList}
+          search={search}
+          selectedCollectionId={selectedCollectionId}
+          selectedRequestId={selectedRequestId}
+          userEmail={email}
+          workspaceId={workspaceId}
+          workspaces={workspaces.data ?? []}
+          onCreateCollection={() => setCollectionModalOpen(true)}
+          onImport={importCollection}
+          onLogout={logout}
+          onNewRequest={newRequest}
+          onPage={setActivePage}
+          onSearch={setSearch}
+          onSelectCollection={setSelectedCollectionId}
+          onSelectRequest={openRequest}
+          onWorkspace={setActiveWorkspace}
+        />
 
       <section className="min-h-0 min-w-0 flex-1">
         {activePage === 'requests' && (
@@ -388,7 +388,7 @@ function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings 
 function RequestHeader({ collection, draft, onCopy, onSave }: { collection?: Collection; draft: RequestDraft; onCopy: () => void; onSave: () => void }) {
   return (
     <div className="flex min-h-[74px] flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0c0c0c] px-6 py-3">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="mb-1 flex min-w-0 items-center gap-2 text-sm text-slate-400">
           <FileCode2 size={18} className="text-teal-400" />
           <span className="shrink-0">APIAutopsy</span>

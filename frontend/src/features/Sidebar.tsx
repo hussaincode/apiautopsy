@@ -67,6 +67,7 @@ export function Sidebar({
     const matchesCollection = selectedCollectionId === 'all' || request.collectionId === selectedCollectionId;
     return matchesSearch && matchesCollection;
   });
+  const unfiledRequests = filteredRequests.filter((request) => !request.collectionId);
 
   function toggleCollection(collectionId: string) {
     onSelectCollection(collectionId);
@@ -125,7 +126,7 @@ export function Sidebar({
             setAllExpanded((expanded) => !expanded);
           }}>
             <span className="flex items-center gap-2"><ChevronDown className={allExpanded ? '' : '-rotate-90'} size={16} />All Collections</span>
-            <span className="text-xs text-slate-500">{requests.length}</span>
+            <span className="text-xs text-slate-500">{collections.length}</span>
           </button>
 
           {allExpanded && <div className="space-y-1">
@@ -155,9 +156,13 @@ export function Sidebar({
           </div>}
 
           <div className="mt-4 border-t border-slate-800 pt-3">
-            <div className="mb-2 px-2 text-xs font-semibold uppercase text-slate-500">Unfiled</div>
+            <div className="mb-2 flex items-center justify-between px-2 text-xs font-semibold uppercase text-slate-500">
+              <span>Unfiled</span>
+              <span>{unfiledRequests.length}</span>
+            </div>
             <div className="space-y-1">
-              {filteredRequests.filter((request) => !request.collectionId).map((request) => <RequestItem key={request.id} request={request} selected={selectedRequestId === request.id} onClick={() => onSelectRequest(request.id)} />)}
+              {unfiledRequests.map((request) => <RequestItem key={request.id} request={request} selected={selectedRequestId === request.id} onClick={() => onSelectRequest(request.id)} />)}
+              {unfiledRequests.length === 0 && <div className="px-2 py-2 text-xs text-slate-500">No unfiled APIs</div>}
             </div>
           </div>
         </div>
