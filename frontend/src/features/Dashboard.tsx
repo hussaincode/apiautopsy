@@ -345,28 +345,28 @@ function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings 
   const displayEmail = email ?? 'user@apiautopsy.com';
   const displayName = displayEmail.split('@')[0].replace(/[._-]+/g, ' ');
   return (
-    <header className="flex h-12 items-center border-b border-slate-800 bg-[#111827] px-3 text-slate-100 shadow-lg shadow-black/20">
-      <div className="mr-4 flex items-center gap-2 text-slate-500">
+    <header className="flex h-12 min-w-0 items-center border-b border-slate-800 bg-[#111827] px-3 text-slate-100 shadow-lg shadow-black/20">
+      <div className="mr-4 hidden shrink-0 items-center gap-2 text-slate-500 sm:flex">
         <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
         <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
         <span className="h-3 w-3 rounded-full bg-[#28c840]" />
       </div>
-      <nav className="flex items-center gap-7 text-[15px]">
+      <nav className="hidden shrink-0 items-center gap-5 text-[15px] xl:flex">
         <button className="font-medium">Home</button>
         <button className="flex items-center gap-1 font-medium">Workspaces <ChevronDown size={15} /></button>
         <button className="font-medium">API Network</button>
       </nav>
-      <div className="mx-auto w-full max-w-md px-6">
+      <div className="mx-auto hidden w-full max-w-md px-4 md:block">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
           <input className="h-9 w-full rounded-xl border border-slate-700 bg-slate-950 pl-9 pr-16 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-indigo-500" placeholder="Search APIAutopsy" />
           <span className="absolute right-3 top-2 rounded bg-slate-900 px-1.5 text-xs text-slate-500">⌘ K</span>
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <button className="flex h-8 items-center gap-1 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white transition hover:bg-indigo-400" onClick={onInvite}><UserPlus size={15} />Invite</button>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <button className="hidden h-8 items-center gap-1 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white transition hover:bg-indigo-400 sm:flex" onClick={onInvite}><UserPlus size={15} />Invite</button>
         <button className="text-slate-400 transition hover:text-slate-100" onClick={onSettings}><Settings size={19} /></button>
-        <button className="text-slate-400 transition hover:text-slate-100"><Bell size={18} /></button>
+        <button className="hidden text-slate-400 transition hover:text-slate-100 sm:block"><Bell size={18} /></button>
         <div className="relative">
           <button className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white ring-2 ring-teal-400/20 transition hover:ring-teal-300/50" onClick={onProfile}>{displayEmail.slice(0, 1).toUpperCase()}</button>
           {profileOpen && (
@@ -387,18 +387,18 @@ function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings 
 
 function RequestHeader({ collection, draft, onCopy, onSave }: { collection?: Collection; draft: RequestDraft; onCopy: () => void; onSave: () => void }) {
   return (
-    <div className="flex h-[74px] items-center justify-between border-b border-slate-800 bg-[#0c0c0c] px-6">
+    <div className="flex min-h-[74px] flex-wrap items-center justify-between gap-3 border-b border-slate-800 bg-[#0c0c0c] px-6 py-3">
       <div className="min-w-0">
-        <div className="mb-1 flex items-center gap-2 text-sm text-slate-400">
+        <div className="mb-1 flex min-w-0 items-center gap-2 text-sm text-slate-400">
           <FileCode2 size={18} className="text-teal-400" />
-          <span>APIAutopsy</span>
+          <span className="shrink-0">APIAutopsy</span>
           <span>/</span>
-          <span>{collection?.name ?? 'Unfiled'}</span>
+          <span className="truncate">{collection?.name ?? 'Unfiled'}</span>
         </div>
         <div className="truncate text-lg font-semibold text-slate-100">{draft.name}</div>
       </div>
-      <div className="flex items-center gap-2">
-        <select className="h-10 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-300">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <select className="h-10 max-w-[210px] rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm text-slate-300">
           <option>No environment</option>
           <option>Local</option>
           <option>Staging</option>

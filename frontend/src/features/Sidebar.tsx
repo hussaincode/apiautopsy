@@ -72,16 +72,16 @@ export function Sidebar({
       </div>
 
       <div className="flex w-[330px] flex-col bg-[#111827]">
-        <div className="flex h-[58px] items-center justify-between border-b border-slate-800 px-4">
-          <div className="min-w-0">
-            <select className="max-w-[190px] appearance-none bg-transparent text-[15px] font-semibold text-slate-100 outline-none" value={workspaceId} onChange={(event) => onWorkspace(event.target.value)}>
+        <div className="border-b border-slate-800 px-4 py-3">
+          <div className="flex min-w-0 items-center">
+            <select className="min-w-0 max-w-full flex-1 appearance-none truncate bg-transparent pr-6 text-[15px] font-semibold text-slate-100 outline-none" value={workspaceId} onChange={(event) => onWorkspace(event.target.value)}>
               {workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
             </select>
-            <ChevronDown className="ml-1 inline text-slate-500" size={15} />
+            <ChevronDown className="-ml-5 shrink-0 text-slate-500" size={15} />
           </div>
-          <div className="flex gap-2">
+          <div className="mt-3 grid grid-cols-[88px_1fr] gap-2">
             <button className="rounded-xl bg-indigo-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400" onClick={onNewRequest}>New</button>
-            <label className="flex cursor-pointer items-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800">
+            <label className="flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800">
               <Import size={14} />Import
               <input className="hidden" type="file" accept="application/json,.json" onChange={(event) => event.target.files?.[0] && onImport(event.target.files[0])} />
             </label>
