@@ -1,6 +1,7 @@
 package com.apiautopsy.schedules;
 
 import com.apiautopsy.common.NotFoundException;
+import com.apiautopsy.alerts.AlertService;
 import com.apiautopsy.collections.Collection;
 import com.apiautopsy.collections.CollectionRepository;
 import com.apiautopsy.executions.Execution;
@@ -32,8 +33,9 @@ public class ScheduleService {
     private final ExecutionService executionService;
     private final ExecutionRepository executions;
     private final WorkflowService workflowService;
+    private final AlertService alertService;
 
-    public ScheduleService(ScheduleRepository schedules, ApiRequestRepository requests, CollectionRepository collections, WorkspaceService workspaceService, ExecutionService executionService, ExecutionRepository executions, WorkflowService workflowService) {
+    public ScheduleService(ScheduleRepository schedules, ApiRequestRepository requests, CollectionRepository collections, WorkspaceService workspaceService, ExecutionService executionService, ExecutionRepository executions, WorkflowService workflowService, AlertService alertService) {
         this.schedules = schedules;
         this.requests = requests;
         this.collections = collections;
@@ -41,6 +43,7 @@ public class ScheduleService {
         this.executionService = executionService;
         this.executions = executions;
         this.workflowService = workflowService;
+        this.alertService = alertService;
     }
 
     public List<ScheduleDtos.ScheduleResponse> list(UUID userId, UUID workspaceId) {
@@ -96,7 +99,10 @@ public class ScheduleService {
         List<Schedule> due = schedules.findTop25ByEnabledTrueAndNextRunAtLessThanEqualOrderByNextRunAtAsc(Instant.now());
         for (Schedule schedule : due) {
             if (schedule.targetType == ScheduleTargetType.WORKFLOW) workflowService.runScheduled(schedule.workspace.id, schedule.collection.id, schedule);
-            else executionService.executeScheduled(schedule.apiRequest, schedule);
+            else {
+                Execution execution = executionService.executeScheduled(schedule.apiRequest, schedule);
+                alertService.evaluateScheduleExecution(schedule, execution);
+            }
             schedule.lastRunAt = Instant.now();
             schedule.nextRunAt = computeNext(schedule);
             schedule.updatedAt = Instant.now();

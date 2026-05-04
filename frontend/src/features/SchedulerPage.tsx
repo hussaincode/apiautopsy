@@ -1,8 +1,8 @@
-import { Activity, CalendarClock, CheckCircle2, Clock3, Edit3, Plus, Power, Trash2, X } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Edit3, Plus, Power, ShieldCheck, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useScheduleDetail } from '../api/hooks';
+import { useAlertIncidents, useAlertRules, useResolveAlertIncident, useSaveAlertRule, useScheduleDetail } from '../api/hooks';
 import { Button, EmptyState, FieldLabel, Input, Select } from '../components/ui';
-import type { ApiRequest, Execution, Schedule, ScheduleType } from '../types/domain';
+import type { AlertIncident, AlertRule, ApiRequest, Execution, Schedule, ScheduleType } from '../types/domain';
 import type { Collection } from '../types/domain';
 
 type SchedulePayload = {
@@ -40,6 +40,7 @@ export function SchedulerPage({
 }) {
   const [modalSchedule, setModalSchedule] = useState<Schedule | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
+  const [alertSchedule, setAlertSchedule] = useState<Schedule | undefined>();
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>();
   const requestById = useMemo(() => new Map(requests.map((request) => [request.id, request])), [requests]);
   const selectedSchedule = schedules.find((schedule) => schedule.id === selectedScheduleId) ?? schedules[0];
@@ -47,6 +48,12 @@ export function SchedulerPage({
   const selectedRequest = selectedSchedule?.apiRequestId ? requestById.get(selectedSchedule.apiRequestId) : undefined;
   const selectedCollection = selectedSchedule?.collectionId ? collectionById.get(selectedSchedule.collectionId) : undefined;
   const detail = useScheduleDetail(workspaceId, selectedSchedule?.id);
+  const alertRules = useAlertRules(workspaceId);
+  const alertIncidents = useAlertIncidents(workspaceId);
+  const saveAlertRule = useSaveAlertRule(workspaceId);
+  const resolveAlertIncident = useResolveAlertIncident(workspaceId);
+  const ruleByScheduleId = useMemo(() => new Map((alertRules.data ?? []).map((rule) => [rule.scheduleId, rule])), [alertRules.data]);
+  const openIncidents = useMemo(() => (alertIncidents.data ?? []).filter((incident) => incident.status === 'OPEN'), [alertIncidents.data]);
 
   useEffect(() => {
     if (!selectedScheduleId && schedules.length > 0) setSelectedScheduleId(schedules[0].id);
@@ -83,10 +90,11 @@ export function SchedulerPage({
 
       <div className="grid gap-5 xl:grid-cols-[1.45fr_0.9fr]">
         <section className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
-          <div className="grid grid-cols-[1.4fr_1fr_86px_150px_110px_110px_118px] border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase text-slate-500">
+          <div className="grid grid-cols-[1.4fr_1fr_86px_110px_150px_110px_110px_150px] border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase text-slate-500">
             <div>API</div>
             <div>Schedule</div>
             <div>Status</div>
+            <div>Alerts</div>
             <div>Last run</div>
             <div>Avg latency</div>
             <div>Success</div>
@@ -98,19 +106,26 @@ export function SchedulerPage({
             const collection = schedule.collectionId ? collectionById.get(schedule.collectionId) : undefined;
             const metrics = calculateMetrics(executions.filter((execution) => execution.scheduleId === schedule.id || (schedule.apiRequestId && execution.apiRequestId === schedule.apiRequestId)));
             const active = selectedSchedule?.id === schedule.id;
+            const rule = ruleByScheduleId.get(schedule.id);
+            const incidentOpen = openIncidents.some((incident) => incident.scheduleId === schedule.id);
             return (
-              <button key={schedule.id} className={`grid w-full grid-cols-[1.4fr_1fr_86px_150px_110px_110px_118px] items-center border-b border-slate-800 px-4 py-4 text-left text-sm transition last:border-b-0 ${active ? 'bg-indigo-500/10' : 'hover:bg-slate-900/70'}`} onClick={() => setSelectedScheduleId(schedule.id)}>
+              <button key={schedule.id} className={`grid w-full grid-cols-[1.4fr_1fr_86px_110px_150px_110px_110px_150px] items-center border-b border-slate-800 px-4 py-4 text-left text-sm transition last:border-b-0 ${active ? 'bg-indigo-500/10' : 'hover:bg-slate-900/70'}`} onClick={() => setSelectedScheduleId(schedule.id)}>
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-slate-100">{schedule.targetType === 'WORKFLOW' ? collection?.name ?? 'Collection workflow' : request?.name ?? 'Unknown API'}</div>
                   <div className="truncate text-xs text-slate-500">{schedule.targetType === 'WORKFLOW' ? 'Workflow schedule' : `${request?.method} ${request?.url}`}</div>
                 </div>
                 <div className="truncate text-slate-300">{formatSchedule(schedule)}</div>
                 <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${schedule.enabled ? 'bg-teal-500/15 text-teal-300' : 'bg-slate-800 text-slate-400'}`}>{schedule.enabled ? 'ON' : 'OFF'}</span>
+                <span className={`inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${incidentOpen ? 'bg-red-500/15 text-red-300' : rule?.enabled ? 'bg-indigo-500/15 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}>
+                  {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
+                  {incidentOpen ? 'OPEN' : rule?.enabled ? 'ON' : 'OFF'}
+                </span>
                 <div className="text-slate-400">{schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleString() : 'Never'}</div>
                 <div className="font-semibold text-slate-200">{metrics.totalRuns ? `${metrics.avgLatencyMs.toFixed(0)} ms` : 'N/A'}</div>
                 <div className="font-semibold text-slate-200">{metrics.totalRuns ? `${metrics.successRate.toFixed(0)}%` : 'N/A'}</div>
                 <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
                   <IconButton label={schedule.enabled ? 'Disable' : 'Enable'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /></IconButton>
+                  <IconButton label="Alert settings" onClick={() => setAlertSchedule(schedule)}><Bell size={15} /></IconButton>
                   <IconButton label="Edit" onClick={() => openEdit(schedule)}><Edit3 size={15} /></IconButton>
                   <IconButton label="Delete" danger onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /></IconButton>
                 </div>
@@ -127,6 +142,8 @@ export function SchedulerPage({
           metrics={detail.data?.metrics ?? calculateMetrics(executions.filter((execution) => selectedSchedule && (execution.scheduleId === selectedSchedule.id || (selectedSchedule.apiRequestId && execution.apiRequestId === selectedSchedule.apiRequestId))))}
           request={selectedRequest}
           collectionName={selectedCollection?.name}
+          incidents={(alertIncidents.data ?? []).filter((incident) => selectedSchedule && incident.scheduleId === selectedSchedule.id)}
+          onResolveIncident={(incidentId) => resolveAlertIncident.mutate(incidentId)}
           schedule={selectedSchedule}
         />
       </div>
@@ -144,11 +161,24 @@ export function SchedulerPage({
           }}
         />
       )}
+
+      {alertSchedule && (
+        <AlertRuleModal
+          isSaving={saveAlertRule.isPending}
+          rule={ruleByScheduleId.get(alertSchedule.id)}
+          schedule={alertSchedule}
+          onClose={() => setAlertSchedule(undefined)}
+          onSave={async (payload) => {
+            await saveAlertRule.mutateAsync({ scheduleId: alertSchedule.id, payload });
+            setAlertSchedule(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ScheduleDetailPanel({ collectionName, executions, isLoading, metrics, request, schedule }: { collectionName?: string; executions: Execution[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; request?: ApiRequest; schedule?: Schedule }) {
+function ScheduleDetailPanel({ collectionName, executions, incidents, isLoading, metrics, onResolveIncident, request, schedule }: { collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
   if (!schedule) {
     return <section className="rounded-2xl border border-slate-800 bg-[#111827] p-6 shadow-xl shadow-black/20"><EmptyState title="Select a schedule" body="Choose a schedule to inspect uptime, latency, and execution history." /></section>;
   }
@@ -166,6 +196,30 @@ function ScheduleDetailPanel({ collectionName, executions, isLoading, metrics, r
         <MetricCard icon={<CheckCircle2 size={16} />} label="Success" value={`${metrics.successRate.toFixed(1)}%`} />
         <MetricCard icon={<Clock3 size={16} />} label="Avg latency" value={`${metrics.avgLatencyMs.toFixed(0)} ms`} />
         <MetricCard icon={<X size={16} />} label="Failure" value={`${metrics.failureRate.toFixed(1)}%`} tone="bad" />
+      </div>
+
+      <div className="px-5 pb-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-100">Alert incidents</h3>
+          <span className="text-xs text-slate-500">{incidents.filter((incident) => incident.status === 'OPEN').length} open</span>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-slate-800">
+          {incidents.slice(0, 4).map((incident) => (
+            <div key={incident.id} className="flex items-start justify-between gap-3 border-b border-slate-800 px-3 py-3 text-sm last:border-b-0">
+              <div className="min-w-0">
+                <div className={`font-semibold ${incident.status === 'OPEN' ? 'text-red-300' : 'text-teal-300'}`}>{incident.status}</div>
+                <div className="mt-1 truncate text-slate-300">{incident.reason}</div>
+                <div className="mt-1 text-xs text-slate-500">Last triggered {new Date(incident.lastTriggeredAt).toLocaleString()}</div>
+              </div>
+              {incident.status === 'OPEN' && (
+                <button className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-teal-400 hover:text-teal-300" onClick={() => onResolveIncident(incident.id)}>
+                  Resolve
+                </button>
+              )}
+            </div>
+          ))}
+          {incidents.length === 0 && <div className="p-4 text-center text-sm text-slate-500">No alert incidents for this schedule.</div>}
+        </div>
       </div>
 
       <div className="px-5 pb-5">
@@ -189,6 +243,91 @@ function ScheduleDetailPanel({ collectionName, executions, isLoading, metrics, r
         </div>
       </div>
     </section>
+  );
+}
+
+function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSaving: boolean; rule?: AlertRule; schedule: Schedule; onClose: () => void; onSave: (payload: Partial<AlertRule>) => Promise<void> }) {
+  const [draft, setDraft] = useState({
+    enabled: rule?.enabled ?? true,
+    alertOnFailure: rule?.alertOnFailure ?? true,
+    latencyThresholdMs: rule?.latencyThresholdMs?.toString() ?? '1500',
+    consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold?.toString() ?? '1',
+    emailRecipients: rule?.emailRecipients?.join(', ') ?? ''
+  });
+
+  const recipients = draft.emailRecipients.split(',').map((email) => email.trim()).filter(Boolean);
+  const latency = draft.latencyThresholdMs.trim() ? Number(draft.latencyThresholdMs) : undefined;
+  const consecutive = Math.max(1, Number(draft.consecutiveFailuresThreshold || 1));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-[#111827] shadow-2xl shadow-black/50">
+        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2 font-semibold text-slate-100"><Bell size={18} />Alert settings</div>
+            <div className="mt-1 text-xs text-slate-500">{schedule.name}</div>
+          </div>
+          <button className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-900 hover:text-slate-100" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
+            <span className="flex items-center gap-2"><ShieldCheck size={16} />Enable smart alerts</span>
+            <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={draft.alertOnFailure} onChange={(event) => setDraft({ ...draft, alertOnFailure: event.target.checked })} />
+            Alert when request fails or returns non-success status
+          </label>
+
+          <label className="block">
+            <FieldLabel>Latency threshold</FieldLabel>
+            <div className="flex items-center gap-2">
+              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" inputMode="numeric" value={draft.latencyThresholdMs} onChange={(event) => setDraft({ ...draft, latencyThresholdMs: event.target.value })} />
+              <span className="text-sm text-slate-500">ms</span>
+            </div>
+          </label>
+
+          <label className="block">
+            <FieldLabel>Consecutive failures before alert</FieldLabel>
+            <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.consecutiveFailuresThreshold} onChange={(event) => setDraft({ ...draft, consecutiveFailuresThreshold: event.target.value })}>
+              <option value="1">1 failure</option>
+              <option value="2">2 failures</option>
+              <option value="3">3 failures</option>
+              <option value="5">5 failures</option>
+            </Select>
+          </label>
+
+          <label className="block">
+            <FieldLabel>Email recipients</FieldLabel>
+            <textarea
+              className="min-h-24 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500"
+              placeholder="ops@company.com, founder@company.com"
+              value={draft.emailRecipients}
+              onChange={(event) => setDraft({ ...draft, emailRecipients: event.target.value })}
+            />
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <button
+            className="flex h-10 items-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50"
+            disabled={isSaving || (latency !== undefined && (!Number.isFinite(latency) || latency < 1))}
+            onClick={() => onSave({
+              enabled: draft.enabled,
+              alertOnFailure: draft.alertOnFailure,
+              latencyThresholdMs: latency,
+              consecutiveFailuresThreshold: consecutive,
+              emailRecipients: recipients
+            })}
+          >
+            <CheckCircle2 size={16} />Save alerts
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

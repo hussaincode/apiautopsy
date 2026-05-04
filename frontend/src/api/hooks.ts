@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { ApiRequest, Certificate, Collection, Execution, ReportSummary, Schedule, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
+import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, Execution, ReportSummary, Schedule, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces() {
   return useQuery({ queryKey: ['workspaces'], queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -100,6 +100,42 @@ export function useScheduleDetail(workspaceId?: string, scheduleId?: string) {
     enabled: !!workspaceId && !!scheduleId,
     refetchInterval: 15000,
     queryFn: async () => (await api.get<ScheduleDetail>(`/workspaces/${workspaceId}/schedules/${scheduleId}/detail`)).data
+  });
+}
+
+export function useAlertRules(workspaceId?: string) {
+  return useQuery({
+    queryKey: ['alert-rules', workspaceId],
+    enabled: !!workspaceId,
+    queryFn: async () => (await api.get<AlertRule[]>(`/workspaces/${workspaceId}/alerts/rules`)).data
+  });
+}
+
+export function useSaveAlertRule(workspaceId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ scheduleId, payload }: { scheduleId: string; payload: Partial<AlertRule> }) => (await api.put<AlertRule>(`/workspaces/${workspaceId}/alerts/rules/${scheduleId}`, payload)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['alert-rules', workspaceId] });
+      qc.invalidateQueries({ queryKey: ['alert-incidents', workspaceId] });
+    }
+  });
+}
+
+export function useAlertIncidents(workspaceId?: string) {
+  return useQuery({
+    queryKey: ['alert-incidents', workspaceId],
+    enabled: !!workspaceId,
+    refetchInterval: 15000,
+    queryFn: async () => (await api.get<AlertIncident[]>(`/workspaces/${workspaceId}/alerts/incidents`)).data
+  });
+}
+
+export function useResolveAlertIncident(workspaceId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (incidentId: string) => (await api.post<AlertIncident>(`/workspaces/${workspaceId}/alerts/incidents/${incidentId}/resolve`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['alert-incidents', workspaceId] })
   });
 }
 

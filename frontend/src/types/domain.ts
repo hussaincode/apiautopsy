@@ -46,6 +46,32 @@ export interface Schedule {
 export interface ReportSummary { total: number; success: number; successRate: number; errorRate: number; avgLatencyMs: number; }
 export interface ScheduleMetrics { totalRuns: number; successfulRuns: number; failedRuns: number; successRate: number; failureRate: number; avgLatencyMs: number; }
 export interface ScheduleDetail { schedule: Schedule; metrics: ScheduleMetrics; executions: Execution[]; }
+export interface AlertRule {
+  id: string;
+  scheduleId: string;
+  enabled: boolean;
+  alertOnFailure: boolean;
+  latencyThresholdMs?: number;
+  consecutiveFailuresThreshold: number;
+  emailRecipients: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AlertIncident {
+  id: string;
+  scheduleId: string;
+  alertRuleId: string;
+  executionId?: string;
+  status: 'OPEN' | 'RESOLVED';
+  reason: string;
+  openedAt: string;
+  resolvedAt?: string;
+  lastTriggeredAt: string;
+  triggerCount: number;
+  lastStatusCode?: number;
+  lastLatencyMs?: number;
+  lastErrorMessage?: string;
+}
 export interface ExtractionRule { variableName: string; jsonPath: string; }
 export interface WorkflowStep { id?: string; apiRequestId: string; stepOrder: number; dependsOnStepId?: string; stopOnFailure: boolean; extractionRules: ExtractionRule[]; }
 export interface WorkflowRunLog { id: string; workflowStepId: string; executionId?: string; stepOrder: number; stepName: string; success: boolean; responseTimeMs: number; statusCode?: number; extractedVariables: Record<string, unknown>; errorMessage?: string; executedAt: string; }

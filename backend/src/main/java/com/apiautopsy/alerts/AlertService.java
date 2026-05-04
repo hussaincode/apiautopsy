@@ -1,0 +1,169 @@
+package com.apiautopsy.alerts;
+
+import com.apiautopsy.auth.EmailService;
+import com.apiautopsy.common.NotFoundException;
+import com.apiautopsy.executions.Execution;
+import com.apiautopsy.executions.ExecutionRepository;
+import com.apiautopsy.schedules.Schedule;
+import com.apiautopsy.schedules.ScheduleRepository;
+import com.apiautopsy.workspaces.WorkspaceService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class AlertService {
+    private static final Logger log = LoggerFactory.getLogger(AlertService.class);
+
+    private final AlertRuleRepository rules;
+    private final AlertIncidentRepository incidents;
+    private final ScheduleRepository schedules;
+    private final ExecutionRepository executions;
+    private final WorkspaceService workspaceService;
+    private final EmailService emailService;
+
+    public AlertService(AlertRuleRepository rules, AlertIncidentRepository incidents, ScheduleRepository schedules, ExecutionRepository executions, WorkspaceService workspaceService, EmailService emailService) {
+        this.rules = rules;
+        this.incidents = incidents;
+        this.schedules = schedules;
+        this.executions = executions;
+        this.workspaceService = workspaceService;
+        this.emailService = emailService;
+    }
+
+    public List<AlertDtos.AlertRuleResponse> listRules(UUID userId, UUID workspaceId) {
+        workspaceService.requireMember(workspaceId, userId);
+        return rules.findByWorkspaceIdOrderByCreatedAtDesc(workspaceId).stream().map(this::toRuleResponse).toList();
+    }
+
+    @Transactional
+    public AlertDtos.AlertRuleResponse saveRule(UUID userId, UUID workspaceId, UUID scheduleId, AlertDtos.AlertRuleRequest request) {
+        workspaceService.requireMember(workspaceId, userId);
+        Schedule schedule = requireSchedule(workspaceId, scheduleId);
+        AlertRule rule = rules.findByScheduleId(scheduleId).orElseGet(AlertRule::new);
+        if (rule.id == null) {
+            rule.workspace = schedule.workspace;
+            rule.schedule = schedule;
+            rule.createdAt = Instant.now();
+        }
+        rule.enabled = request.enabled();
+        rule.alertOnFailure = request.alertOnFailure();
+        rule.latencyThresholdMs = request.latencyThresholdMs();
+        rule.consecutiveFailuresThreshold = Math.max(1, request.consecutiveFailuresThreshold());
+        rule.emailRecipients = cleanRecipients(request.emailRecipients());
+        rule.updatedAt = Instant.now();
+        return toRuleResponse(rules.save(rule));
+    }
+
+    public List<AlertDtos.AlertIncidentResponse> listIncidents(UUID userId, UUID workspaceId) {
+        workspaceService.requireMember(workspaceId, userId);
+        return incidents.findTop100ByWorkspaceIdOrderByOpenedAtDesc(workspaceId).stream().map(this::toIncidentResponse).toList();
+    }
+
+    @Transactional
+    public AlertDtos.AlertIncidentResponse resolveIncident(UUID userId, UUID workspaceId, UUID incidentId) {
+        workspaceService.requireMember(workspaceId, userId);
+        AlertIncident incident = incidents.findById(incidentId).orElseThrow(() -> new NotFoundException("Alert incident not found"));
+        if (!incident.workspace.id.equals(workspaceId)) throw new NotFoundException("Alert incident not found");
+        if (incident.status == AlertIncidentStatus.OPEN) {
+            incident.status = AlertIncidentStatus.RESOLVED;
+            incident.resolvedAt = Instant.now();
+        }
+        return toIncidentResponse(incident);
+    }
+
+    @Transactional
+    public void evaluateScheduleExecution(Schedule schedule, Execution execution) {
+        rules.findByScheduleId(schedule.id).ifPresent(rule -> {
+            if (!rule.enabled) return;
+            List<String> reasons = reasons(rule, execution);
+            if (reasons.isEmpty()) {
+                resolveOpenIncident(rule, execution);
+                return;
+            }
+            triggerIncident(rule, execution, String.join("; ", reasons));
+        });
+    }
+
+    private List<String> reasons(AlertRule rule, Execution execution) {
+        List<String> reasons = new ArrayList<>();
+        if (rule.alertOnFailure && !execution.success) {
+            reasons.add("Request failed with status " + (execution.statusCode == null ? "N/A" : execution.statusCode));
+        }
+        if (rule.latencyThresholdMs != null && execution.responseTimeMs > rule.latencyThresholdMs) {
+            reasons.add("Latency " + execution.responseTimeMs + " ms exceeded " + rule.latencyThresholdMs + " ms");
+        }
+        int consecutiveFailures = consecutiveFailures(rule.schedule.id);
+        if (consecutiveFailures >= rule.consecutiveFailuresThreshold && !execution.success) {
+            reasons.add(consecutiveFailures + " consecutive failures detected");
+        }
+        return reasons;
+    }
+
+    private int consecutiveFailures(UUID scheduleId) {
+        int count = 0;
+        for (Execution execution : executions.findTop100ByScheduleIdOrderByExecutedAtDesc(scheduleId)) {
+            if (execution.success) break;
+            count++;
+        }
+        return count;
+    }
+
+    private void triggerIncident(AlertRule rule, Execution execution, String reason) {
+        AlertIncident incident = incidents.findFirstByScheduleIdAndStatusOrderByOpenedAtDesc(rule.schedule.id, AlertIncidentStatus.OPEN).orElseGet(() -> {
+            AlertIncident created = new AlertIncident();
+            created.workspace = rule.workspace;
+            created.schedule = rule.schedule;
+            created.alertRule = rule;
+            created.openedAt = Instant.now();
+            return created;
+        });
+        boolean isNew = incident.id == null;
+        incident.execution = execution;
+        incident.status = AlertIncidentStatus.OPEN;
+        incident.reason = reason;
+        incident.lastTriggeredAt = Instant.now();
+        incident.lastStatusCode = execution.statusCode;
+        incident.lastLatencyMs = execution.responseTimeMs;
+        incident.lastErrorMessage = execution.errorMessage;
+        if (!isNew) incident.triggerCount++;
+        incidents.save(incident);
+        if (isNew) emailService.sendAlertTriggered(rule.emailRecipients, rule.schedule.name, reason);
+    }
+
+    private void resolveOpenIncident(AlertRule rule, Execution execution) {
+        incidents.findFirstByScheduleIdAndStatusOrderByOpenedAtDesc(rule.schedule.id, AlertIncidentStatus.OPEN).ifPresent(incident -> {
+            incident.execution = execution;
+            incident.status = AlertIncidentStatus.RESOLVED;
+            incident.resolvedAt = Instant.now();
+            incident.lastTriggeredAt = Instant.now();
+            incidents.save(incident);
+            emailService.sendAlertResolved(rule.emailRecipients, rule.schedule.name);
+        });
+    }
+
+    private Schedule requireSchedule(UUID workspaceId, UUID scheduleId) {
+        Schedule schedule = schedules.findById(scheduleId).orElseThrow(() -> new NotFoundException("Schedule not found"));
+        if (!schedule.workspace.id.equals(workspaceId)) throw new NotFoundException("Schedule not found");
+        return schedule;
+    }
+
+    private List<String> cleanRecipients(List<String> recipients) {
+        if (recipients == null) return List.of();
+        return recipients.stream().map(String::trim).filter(email -> !email.isBlank()).distinct().toList();
+    }
+
+    private AlertDtos.AlertRuleResponse toRuleResponse(AlertRule rule) {
+        return new AlertDtos.AlertRuleResponse(rule.id, rule.schedule.id, rule.enabled, rule.alertOnFailure, rule.latencyThresholdMs, rule.consecutiveFailuresThreshold, rule.emailRecipients, rule.createdAt, rule.updatedAt);
+    }
+
+    private AlertDtos.AlertIncidentResponse toIncidentResponse(AlertIncident incident) {
+        return new AlertDtos.AlertIncidentResponse(incident.id, incident.schedule.id, incident.alertRule.id, incident.execution == null ? null : incident.execution.id, incident.status, incident.reason, incident.openedAt, incident.resolvedAt, incident.lastTriggeredAt, incident.triggerCount, incident.lastStatusCode, incident.lastLatencyMs, incident.lastErrorMessage);
+    }
+}
