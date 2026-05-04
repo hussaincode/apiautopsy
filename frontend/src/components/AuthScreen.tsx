@@ -45,6 +45,7 @@ export function AuthScreen() {
     if (submitting) return;
     setError('');
     setNotice('');
+    const normalizedEmail = email.trim().toLowerCase();
     if (mode === 'register' && pendingEmail) {
       if (!otp.trim()) {
         setError('Please enter the verification code.');
@@ -52,7 +53,7 @@ export function AuthScreen() {
       }
       setSubmitting(true);
       try {
-        const { data } = await api.post('/auth/register/verify', { email: pendingEmail, otp });
+        const { data } = await api.post('/auth/register/verify', { email: pendingEmail.trim().toLowerCase(), otp });
         setAuth(data.token, data.email);
       } catch (e: any) {
         setError(authErrorMessage(e));
@@ -76,7 +77,7 @@ export function AuthScreen() {
     setSubmitting(true);
     try {
       const path = mode === 'login' ? '/auth/login' : '/auth/register';
-      const payload = mode === 'login' ? { email, password } : { email, password, name };
+      const payload = mode === 'login' ? { email: normalizedEmail, password } : { email: normalizedEmail, password, name: name.trim() };
       const { data } = await api.post(path, payload);
       if (mode === 'register') {
         setPendingEmail(data.email);
@@ -115,7 +116,7 @@ export function AuthScreen() {
             ) : (
               <>
                 {mode === 'register' && <input autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
-                <input autoComplete="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+                <input autoCapitalize="none" autoComplete="email" autoCorrect="off" inputMode="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
                 <input autoComplete={mode === 'login' ? 'current-password' : 'new-password'} disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
               </>
             )}

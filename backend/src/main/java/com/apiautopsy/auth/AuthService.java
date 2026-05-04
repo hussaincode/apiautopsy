@@ -35,13 +35,13 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.RegisterStartResponse register(AuthDtos.RegisterRequest request) {
-        String email = request.email().toLowerCase();
+        String email = normalizeEmail(request.email());
         users.findByEmailIgnoreCase(email).ifPresent(u -> { throw new IllegalArgumentException("Email already registered"); });
 
         String otp = "%06d".formatted(RANDOM.nextInt(1_000_000));
         PendingRegistration pending = pendingRegistrations.findByEmailIgnoreCase(email).orElseGet(PendingRegistration::new);
         pending.email = email;
-        pending.name = request.name();
+        pending.name = request.name().trim();
         pending.passwordHash = encoder.encode(request.password());
         pending.otpHash = encoder.encode(otp);
         pending.expiresAt = Instant.now().plus(10, ChronoUnit.MINUTES);
@@ -55,7 +55,7 @@ public class AuthService {
 
     @Transactional
     public AuthDtos.AuthResponse verifyRegistration(AuthDtos.VerifyRegistrationRequest request) {
-        String email = request.email().toLowerCase();
+        String email = normalizeEmail(request.email());
         users.findByEmailIgnoreCase(email).ifPresent(u -> { throw new IllegalArgumentException("Email already registered"); });
 
         PendingRegistration pending = pendingRegistrations.findByEmailIgnoreCase(email)
@@ -87,7 +87,7 @@ public class AuthService {
     }
 
     public AuthDtos.AuthResponse login(AuthDtos.LoginRequest request) {
-        User user = users.findByEmailIgnoreCase(request.email()).orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
+        User user = users.findByEmailIgnoreCase(normalizeEmail(request.email())).orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
         if (user.passwordHash == null || !encoder.matches(request.password(), user.passwordHash)) throw new IllegalArgumentException("Invalid credentials");
         return response(user);
     }
@@ -110,5 +110,9 @@ public class AuthService {
 
     private AuthDtos.AuthResponse response(User user) {
         return new AuthDtos.AuthResponse(jwt.issue(user), user.email, user.name, user.role.name());
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase();
     }
 }
