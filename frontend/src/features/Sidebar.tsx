@@ -11,6 +11,7 @@ import {
   Timer,
   Workflow
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Input } from '../components/ui';
 import type { ApiRequest, Collection, Workspace } from '../types/domain';
 import type { AppPage } from './dashboardTypes';
@@ -52,11 +53,33 @@ export function Sidebar({
   onWorkspace: (id: string) => void;
   onLogout: () => void;
 }) {
+  const [allExpanded, setAllExpanded] = useState(true);
+  const [expandedCollectionIds, setExpandedCollectionIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (selectedCollectionId && selectedCollectionId !== 'all') {
+      setExpandedCollectionIds((current) => new Set(current).add(selectedCollectionId));
+    }
+  }, [selectedCollectionId]);
+
   const filteredRequests = requests.filter((request) => {
     const matchesSearch = `${request.name} ${request.url}`.toLowerCase().includes(search.toLowerCase());
     const matchesCollection = selectedCollectionId === 'all' || request.collectionId === selectedCollectionId;
     return matchesSearch && matchesCollection;
   });
+
+  function toggleCollection(collectionId: string) {
+    onSelectCollection(collectionId);
+    setExpandedCollectionIds((current) => {
+      const next = new Set(current);
+      if (next.has(collectionId)) {
+        next.delete(collectionId);
+      } else {
+        next.add(collectionId);
+      }
+      return next;
+    });
+  }
 
   return (
     <aside className="flex h-[calc(100vh-48px)] shrink-0 border-r border-slate-800 bg-[#0c0c0c] text-slate-100">
@@ -97,26 +120,30 @@ export function Sidebar({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto p-3">
-          <button className={`mb-2 flex w-full items-center justify-between rounded-xl px-2 py-2 text-left text-[15px] transition ${selectedCollectionId === 'all' ? 'bg-slate-900 text-slate-100' : 'text-slate-300 hover:bg-slate-900'}`} onClick={() => onSelectCollection('all')}>
-            <span className="flex items-center gap-2"><ChevronDown size={16} />All Collections</span>
+          <button className={`mb-2 flex w-full items-center justify-between rounded-xl px-2 py-2 text-left text-[15px] transition ${selectedCollectionId === 'all' ? 'bg-slate-900 text-slate-100' : 'text-slate-300 hover:bg-slate-900'}`} onClick={() => {
+            onSelectCollection('all');
+            setAllExpanded((expanded) => !expanded);
+          }}>
+            <span className="flex items-center gap-2"><ChevronDown className={allExpanded ? '' : '-rotate-90'} size={16} />All Collections</span>
             <span className="text-xs text-slate-500">{requests.length}</span>
           </button>
 
-          <div className="space-y-1">
+          {allExpanded && <div className="space-y-1">
             {collections.map((collection) => {
-              const childRequests = filteredRequests.filter((request) => request.collectionId === collection.id);
+              const childRequests = requests.filter((request) => request.collectionId === collection.id && `${request.name} ${request.url}`.toLowerCase().includes(search.toLowerCase()));
               const selected = selectedCollectionId === collection.id;
+              const expanded = expandedCollectionIds.has(collection.id);
               return (
                 <div key={collection.id}>
-                  <button className={`flex w-full items-center justify-between rounded-xl px-2 py-2 text-left text-[15px] transition ${selected ? 'bg-slate-900 text-slate-100' : 'text-slate-300 hover:bg-slate-900'}`} onClick={() => onSelectCollection(collection.id)}>
+                  <button className={`flex w-full items-center justify-between rounded-xl px-2 py-2 text-left text-[15px] transition ${selected ? 'bg-slate-900 text-slate-100' : 'text-slate-300 hover:bg-slate-900'}`} onClick={() => toggleCollection(collection.id)}>
                     <span className="flex min-w-0 items-center gap-2">
-                      <ChevronDown className={selected ? '' : '-rotate-90'} size={15} />
+                      <ChevronDown className={expanded ? '' : '-rotate-90'} size={15} />
                       <Folder size={16} />
                       <span className="truncate">{collection.name}</span>
                     </span>
                     <span className="text-xs text-slate-500">{childRequests.length}</span>
                   </button>
-                  {selected && (
+                  {expanded && (
                     <div className="ml-7 mt-1 space-y-1">
                       {childRequests.map((request) => <RequestItem key={request.id} request={request} selected={selectedRequestId === request.id} onClick={() => onSelectRequest(request.id)} />)}
                       {childRequests.length === 0 && <div className="px-2 py-2 text-xs text-slate-500">No APIs in this collection</div>}
@@ -125,7 +152,7 @@ export function Sidebar({
                 </div>
               );
             })}
-          </div>
+          </div>}
 
           <div className="mt-4 border-t border-slate-800 pt-3">
             <div className="mb-2 px-2 text-xs font-semibold uppercase text-slate-500">Unfiled</div>
