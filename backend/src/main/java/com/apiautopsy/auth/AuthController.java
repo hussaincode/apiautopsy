@@ -13,8 +13,13 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    AuthDtos.AuthResponse register(@Valid @RequestBody AuthDtos.RegisterRequest request) {
+    AuthDtos.RegisterStartResponse register(@Valid @RequestBody AuthDtos.RegisterRequest request) {
         return service.register(request);
+    }
+
+    @PostMapping("/register/verify")
+    AuthDtos.AuthResponse verifyRegistration(@Valid @RequestBody AuthDtos.VerifyRegistrationRequest request) {
+        return service.verifyRegistration(request);
     }
 
     @PostMapping("/login")

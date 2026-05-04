@@ -8,7 +8,10 @@ export function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [otp, setOtp] = useState('');
+  const [pendingEmail, setPendingEmail] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const setAuth = useAuth((s) => s.setAuth);
 
@@ -23,12 +26,41 @@ export function AuthScreen() {
     if (message.includes('Invalid credentials')) {
       return 'Invalid email or password.';
     }
+    if (message.includes('Invalid verification code')) {
+      return 'Invalid verification code.';
+    }
+    if (message.includes('Verification code expired')) {
+      return 'Verification code expired. Please register again.';
+    }
+    if (message.includes('Too many attempts')) {
+      return 'Too many attempts. Please register again.';
+    }
+    if (message.includes('Could not send verification email')) {
+      return 'Could not send verification email. Please try again.';
+    }
     return 'Authentication failed. Please check your details and try again.';
   }
 
   async function submit() {
     if (submitting) return;
     setError('');
+    setNotice('');
+    if (mode === 'register' && pendingEmail) {
+      if (!otp.trim()) {
+        setError('Please enter the verification code.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const { data } = await api.post('/auth/register/verify', { email: pendingEmail, otp });
+        setAuth(data.token, data.email);
+      } catch (e: any) {
+        setError(authErrorMessage(e));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     if (mode === 'register' && !name.trim()) {
       setError('Please enter your name.');
       return;
@@ -46,7 +78,13 @@ export function AuthScreen() {
       const path = mode === 'login' ? '/auth/login' : '/auth/register';
       const payload = mode === 'login' ? { email, password } : { email, password, name };
       const { data } = await api.post(path, payload);
-      setAuth(data.token, data.email);
+      if (mode === 'register') {
+        setPendingEmail(data.email);
+        setOtp('');
+        setNotice(data.message ?? 'Verification code sent to your email.');
+      } else {
+        setAuth(data.token, data.email);
+      }
     } catch (e: any) {
       setError(authErrorMessage(e));
     } finally {
@@ -67,12 +105,23 @@ export function AuthScreen() {
           </div>
           <div className="rounded-lg border border-line bg-panel p-6 shadow-2xl">
             <div className="mb-6 grid grid-cols-2 rounded-md bg-slate-950 p-1">
-              <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => setMode('login')}>Login</button>
-              <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => setMode('register')}>Register</button>
+              <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('login'); setPendingEmail(''); setNotice(''); setError(''); }}>Login</button>
+              <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('register'); setNotice(''); setError(''); }}>Register</button>
             </div>
-            {mode === 'register' && <input autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
-            <input autoComplete="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-            <input autoComplete={mode === 'login' ? 'current-password' : 'new-password'} disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+            {mode === 'register' && pendingEmail ? (
+              <>
+                <p className="mb-3 rounded-md border border-teal-500/30 bg-teal-500/10 px-3 py-3 text-sm leading-6 text-teal-100">We sent a 6-digit verification code to <span className="font-semibold">{pendingEmail}</span>.</p>
+                <input inputMode="numeric" maxLength={6} autoComplete="one-time-code" disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 text-center text-xl tracking-[0.35em] disabled:cursor-not-allowed disabled:opacity-60" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" />
+                <button className="mb-3 text-sm font-semibold text-slate-300 hover:text-white" disabled={submitting} onClick={() => { setPendingEmail(''); setOtp(''); setNotice(''); setError(''); }}>Use a different email</button>
+              </>
+            ) : (
+              <>
+                {mode === 'register' && <input autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
+                <input autoComplete="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+                <input autoComplete={mode === 'login' ? 'current-password' : 'new-password'} disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+              </>
+            )}
+            {notice && <p className="mb-3 text-sm text-teal-200">{notice}</p>}
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             <button
               className="flex w-full items-center justify-center gap-2 rounded-md bg-brand px-4 py-3 font-semibold text-ink transition disabled:cursor-not-allowed disabled:opacity-70"
@@ -80,7 +129,7 @@ export function AuthScreen() {
               onClick={submit}
             >
               {submitting && <Loader2 className="animate-spin" size={18} />}
-              {submitting ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign in' : 'Create account')}
+              {submitting ? (mode === 'login' ? 'Signing in...' : pendingEmail ? 'Verifying...' : 'Sending code...') : (mode === 'login' ? 'Sign in' : pendingEmail ? 'Verify and create account' : 'Send verification code')}
             </button>
             <a
               className={`mt-3 block w-full rounded-md border border-line px-4 py-3 text-center text-slate-200 ${submitting ? 'pointer-events-none opacity-60' : ''}`}
