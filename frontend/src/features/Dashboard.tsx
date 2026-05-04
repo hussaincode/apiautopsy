@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, ChevronDown, Copy, FileCode2, Plus, Search, Settings, UserPlus } from 'lucide-react';
+import { Bell, ChevronDown, Copy, FileCode2, Menu, Plus, Search, Settings, UserPlus } from 'lucide-react';
 import { Button, EmptyState, FieldLabel, Input } from '../components/ui';
 import {
   useCollections,
@@ -50,6 +50,7 @@ export function Dashboard() {
   const [selectedCollectionId, setSelectedCollectionId] = useState('all');
   const [selectedRequestId, setSelectedRequestId] = useState<string>();
   const [draft, setDraft] = useState<RequestDraft>(emptyRequestDraft());
+  const [mobilePane, setMobilePane] = useState<'collections' | 'request'>('collections');
 
   const workspaces = useWorkspaces();
   const workspaceId = activeWorkspace ?? workspaces.data?.[0]?.id;
@@ -183,6 +184,7 @@ export function Dashboard() {
     const saved = await createRequest.mutateAsync(payload);
     openRequest(saved.id);
     setDraft(fromRequest(saved as ApiRequest));
+    setMobilePane('request');
     setToast('New request created');
   }
 
@@ -191,6 +193,7 @@ export function Dashboard() {
     setLiveExecution(undefined);
     setOpenTabIds((current) => current.includes(id) ? current : [...current, id]);
     setActivePage('requests');
+    setMobilePane('request');
   }
 
   function closeTab(id: string) {
@@ -235,7 +238,12 @@ export function Dashboard() {
     <main className="h-screen overflow-hidden bg-[#0c0c0c] text-slate-100">
       <TopBar email={email} profileOpen={profileOpen} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => setActivePage('settings')} />
       <div className="flex h-[calc(100vh-48px)] min-h-0">
+        <div className="fixed bottom-4 left-1/2 z-40 grid w-[calc(100%-32px)] max-w-sm -translate-x-1/2 grid-cols-2 rounded-2xl border border-slate-800 bg-[#111827]/95 p-1 shadow-2xl shadow-black/40 backdrop-blur md:hidden">
+          <button className={`rounded-xl px-3 py-2 text-sm font-semibold ${mobilePane === 'collections' ? 'bg-indigo-500 text-white' : 'text-slate-300'}`} onClick={() => setMobilePane('collections')}>Collections</button>
+          <button className={`rounded-xl px-3 py-2 text-sm font-semibold ${mobilePane === 'request' ? 'bg-indigo-500 text-white' : 'text-slate-300'}`} onClick={() => setMobilePane('request')}>Request</button>
+        </div>
         <Sidebar
+          className={mobilePane === 'collections' ? 'flex' : 'hidden md:flex'}
           activePage={activePage}
           collections={collectionList}
           requests={requestList}
@@ -256,10 +264,11 @@ export function Dashboard() {
           onWorkspace={setActiveWorkspace}
         />
 
-      <section className="min-h-0 min-w-0 flex-1">
+      <section className={`min-h-0 min-w-0 flex-1 ${mobilePane === 'request' ? 'block' : 'hidden md:block'}`}>
         {activePage === 'requests' && (
           <div className="flex h-full min-h-0 flex-col bg-[#0c0c0c]">
             <section className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+              <button className="m-3 flex items-center gap-2 rounded-xl border border-slate-800 bg-[#111827] px-3 py-2 text-sm font-semibold text-slate-200 md:hidden" onClick={() => setMobilePane('collections')}><Menu size={16} />Collections</button>
               <RequestTabs openIds={openTabIds} requests={requestList} selectedId={selectedRequestId} onClose={closeTab} onNew={newRequest} onSelect={openRequest} />
               {draft ? (
                 <>

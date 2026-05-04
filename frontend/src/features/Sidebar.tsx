@@ -17,6 +17,7 @@ import type { ApiRequest, Collection, Workspace } from '../types/domain';
 import type { AppPage } from './dashboardTypes';
 
 export function Sidebar({
+  className = '',
   activePage,
   collections,
   requests,
@@ -34,6 +35,7 @@ export function Sidebar({
   onSelectRequest,
   onWorkspace
 }: {
+  className?: string;
   activePage: AppPage;
   collections: Collection[];
   requests: ApiRequest[];
@@ -83,7 +85,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="flex h-[calc(100vh-48px)] shrink-0 border-r border-slate-800 bg-[#0c0c0c] text-slate-100">
+    <aside className={`h-[calc(100vh-48px)] shrink-0 border-r border-slate-800 bg-[#0c0c0c] text-slate-100 ${className || 'flex'}`}>
       <div className="flex w-[74px] flex-col items-center border-r border-slate-800 bg-[#111827] py-3">
         <RailButton active={activePage === 'requests'} icon={<Boxes size={21} />} label="Collections" onClick={() => onPage('requests')} />
         <RailButton icon={<Database size={21} />} label="Environments" onClick={() => onPage('settings')} />
@@ -95,7 +97,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="flex w-[330px] flex-col bg-[#111827]">
+      <div className="flex w-[calc(100vw-74px)] max-w-[390px] flex-col bg-[#111827] md:w-[330px]">
         <div className="border-b border-slate-800 px-4 py-3">
           <div className="flex min-w-0 items-center">
             <select className="min-w-0 max-w-full flex-1 appearance-none truncate bg-transparent pr-6 text-[15px] font-semibold text-slate-100 outline-none" value={workspaceId} onChange={(event) => onWorkspace(event.target.value)}>
