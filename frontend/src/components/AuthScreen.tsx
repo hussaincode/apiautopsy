@@ -102,35 +102,35 @@ export function AuthScreen() {
             <h1 className="max-w-2xl text-5xl font-semibold tracking-normal text-white">APIAutopsy</h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">Build, test, schedule, and monitor APIs from one secure multi-tenant workspace.</p>
           </div>
-          <div className="rounded-lg border border-line bg-panel p-6 shadow-2xl">
+          <form className="rounded-lg border border-line bg-panel p-6 shadow-2xl" noValidate onSubmit={(event) => { event.preventDefault(); submit(); }}>
             <div className="mb-6 grid grid-cols-2 rounded-md bg-slate-950 p-1">
-              <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('login'); setPendingEmail(''); setNotice(''); setError(''); }}>Login</button>
-              <button disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('register'); setNotice(''); setError(''); }}>Register</button>
+              <button type="button" disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('login'); setPendingEmail(''); setNotice(''); setError(''); }}>Login</button>
+              <button type="button" disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('register'); setNotice(''); setError(''); }}>Register</button>
             </div>
             {mode === 'register' && pendingEmail ? (
               <>
                 <p className="mb-3 rounded-md border border-teal-500/30 bg-teal-500/10 px-3 py-3 text-sm leading-6 text-teal-100">We sent a 6-digit verification code to <span className="font-semibold">{pendingEmail}</span>.</p>
                 <input inputMode="numeric" maxLength={6} autoComplete="one-time-code" disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 text-center text-xl tracking-[0.35em] disabled:cursor-not-allowed disabled:opacity-60" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" />
-                <button className="mb-3 text-sm font-semibold text-slate-300 hover:text-white" disabled={submitting} onClick={() => { setPendingEmail(''); setOtp(''); setNotice(''); setError(''); }}>Use a different email</button>
+                <button type="button" className="mb-3 text-sm font-semibold text-slate-300 hover:text-white" disabled={submitting} onClick={() => { setPendingEmail(''); setOtp(''); setNotice(''); setError(''); }}>Use a different email</button>
               </>
             ) : (
               <>
                 {mode === 'register' && <input autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
-                <input autoCapitalize="none" autoComplete="email" autoCorrect="off" inputMode="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-                <input autoComplete={mode === 'login' ? 'current-password' : 'new-password'} disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+                <input autoCapitalize="none" autoComplete="email" autoCorrect="off" inputMode="email" type="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onBlur={() => setEmail((value) => value.trim().toLowerCase())} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+                <input autoCapitalize="none" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} autoCorrect="off" disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
               </>
             )}
             {notice && <p className="mb-3 text-sm text-teal-200">{notice}</p>}
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             <button
+              type="submit"
               className="flex w-full items-center justify-center gap-2 rounded-md bg-brand px-4 py-3 font-semibold text-ink transition disabled:cursor-not-allowed disabled:opacity-70"
               disabled={submitting}
-              onClick={submit}
             >
               {submitting && <Loader2 className="animate-spin" size={18} />}
               {submitting ? (mode === 'login' ? 'Signing in...' : pendingEmail ? 'Verifying...' : 'Sending code...') : (mode === 'login' ? 'Sign in' : pendingEmail ? 'Verify and create account' : 'Send verification code')}
             </button>
-          </div>
+          </form>
         </section>
       </div>
     </main>
