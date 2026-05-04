@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import { api, backendOrigin } from '../api/client';
+import { api } from '../api/client';
 import { useAuth } from '../store/auth';
 
 export function AuthScreen() {
@@ -131,12 +131,6 @@ export function AuthScreen() {
               {submitting && <Loader2 className="animate-spin" size={18} />}
               {submitting ? (mode === 'login' ? 'Signing in...' : pendingEmail ? 'Verifying...' : 'Sending code...') : (mode === 'login' ? 'Sign in' : pendingEmail ? 'Verify and create account' : 'Send verification code')}
             </button>
-            <a
-              className={`mt-3 block w-full rounded-md border border-line px-4 py-3 text-center text-slate-200 ${submitting ? 'pointer-events-none opacity-60' : ''}`}
-              href={`${backendOrigin}/oauth2/authorization/google`}
-            >
-              Continue with Google
-            </a>
           </div>
         </section>
       </div>
