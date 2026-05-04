@@ -234,7 +234,7 @@ export function Dashboard() {
   return (
     <main className="h-screen overflow-hidden bg-[#0c0c0c] text-slate-100">
       <TopBar email={email} profileOpen={profileOpen} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => setActivePage('settings')} />
-      <div className="flex">
+      <div className="flex h-[calc(100vh-48px)] min-h-0">
       <Sidebar
         activePage={activePage}
         collections={collectionList}
@@ -256,10 +256,10 @@ export function Dashboard() {
         onWorkspace={setActiveWorkspace}
       />
 
-      <section className="min-w-0 flex-1">
+      <section className="min-h-0 min-w-0 flex-1">
         {activePage === 'requests' && (
-          <div className="h-[calc(100vh-48px)] bg-[#0c0c0c]">
-            <section className="min-w-0 overflow-auto">
+          <div className="flex h-full min-h-0 flex-col bg-[#0c0c0c]">
+            <section className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
               <RequestTabs openIds={openTabIds} requests={requestList} selectedId={selectedRequestId} onClose={closeTab} onNew={newRequest} onSelect={openRequest} />
               {draft ? (
                 <>
