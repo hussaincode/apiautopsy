@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { api } from '../api/client';
+import { api, backendOrigin } from '../api/client';
 import { useAuth } from '../store/auth';
 
 export function AuthScreen() {
@@ -18,8 +18,8 @@ export function AuthScreen() {
       const payload = mode === 'login' ? { email, password } : { email, password, name };
       const { data } = await api.post(path, payload);
       setAuth(data.token, data.email);
-    } catch (e) {
-      setError('Authentication failed. Check credentials and backend availability.');
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Authentication failed. Check credentials and backend availability.');
     }
   }
 
@@ -44,7 +44,7 @@ export function AuthScreen() {
             <input className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
             {error && <p className="mb-3 text-sm text-red-300">{error}</p>}
             <button className="w-full rounded-md bg-brand px-4 py-3 font-semibold text-ink" onClick={submit}>{mode === 'login' ? 'Sign in' : 'Create account'}</button>
-            <a className="mt-3 block w-full rounded-md border border-line px-4 py-3 text-center text-slate-200" href={`${import.meta.env.VITE_API_BASE ?? 'http://localhost:8080'}/oauth2/authorization/google`}>Continue with Google</a>
+            <a className="mt-3 block w-full rounded-md border border-line px-4 py-3 text-center text-slate-200" href={`${backendOrigin}/oauth2/authorization/google`}>Continue with Google</a>
           </div>
         </section>
       </div>
