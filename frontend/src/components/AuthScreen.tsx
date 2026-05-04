@@ -11,6 +11,20 @@ export function AuthScreen() {
   const [error, setError] = useState('');
   const setAuth = useAuth((s) => s.setAuth);
 
+  function authErrorMessage(error: any) {
+    const message = String(error?.response?.data?.message ?? '');
+    if (message.includes('well-formed email') || message.includes('registerRequest.email')) {
+      return 'Please provide a valid email address.';
+    }
+    if (message.includes('Email already registered')) {
+      return 'This email is already registered. Try logging in instead.';
+    }
+    if (message.includes('Invalid credentials')) {
+      return 'Invalid email or password.';
+    }
+    return 'Authentication failed. Please check your details and try again.';
+  }
+
   async function submit() {
     setError('');
     try {
@@ -19,7 +33,7 @@ export function AuthScreen() {
       const { data } = await api.post(path, payload);
       setAuth(data.token, data.email);
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Authentication failed. Check credentials and backend availability.');
+      setError(authErrorMessage(e));
     }
   }
 
