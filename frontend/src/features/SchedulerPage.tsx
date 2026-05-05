@@ -34,9 +34,9 @@ export function SchedulerPage({
   workspaceId?: string;
   collections?: Collection[];
   onCreateSchedule: (payload: SchedulePayload) => void;
-  onDeleteSchedule: (schedule: Schedule) => void;
+  onDeleteSchedule: (schedule: Schedule) => Promise<void> | void;
   onSaveSchedule: (scheduleId: string | undefined, payload: SchedulePayload) => Promise<void>;
-  onToggleSchedule: (schedule: Schedule) => void;
+  onToggleSchedule: (schedule: Schedule) => Promise<void> | void;
 }) {
   const [modalSchedule, setModalSchedule] = useState<Schedule | undefined>();
   const [modalOpen, setModalOpen] = useState(false);
@@ -76,6 +76,10 @@ export function SchedulerPage({
     }
   }
 
+  function selectSchedule(scheduleId: string) {
+    setSelectedScheduleId(scheduleId);
+  }
+
   return (
     <div className="h-[calc(100vh-48px)] overflow-auto bg-[#0c0c0c] p-6 text-slate-100">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -88,50 +92,73 @@ export function SchedulerPage({
         </button>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.45fr_0.9fr]">
-        <section className="overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
-          <div className="grid grid-cols-[1.4fr_1fr_86px_110px_150px_110px_110px_150px] border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase text-slate-500">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(420px,0.9fr)]">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
+          <div className="hidden grid-cols-[minmax(220px,1.8fr)_118px_92px_104px_132px_100px_92px_172px] gap-3 border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 min-[1180px]:grid">
             <div>API</div>
             <div>Schedule</div>
             <div>Status</div>
             <div>Alerts</div>
             <div>Last run</div>
-            <div>Avg latency</div>
+            <div>Latency</div>
             <div>Success</div>
-            <div className="text-right">Controls</div>
+            <div className="text-right">Actions</div>
           </div>
 
-          {schedules.map((schedule) => {
-            const request = schedule.apiRequestId ? requestById.get(schedule.apiRequestId) : undefined;
-            const collection = schedule.collectionId ? collectionById.get(schedule.collectionId) : undefined;
-            const metrics = calculateMetrics(executions.filter((execution) => execution.scheduleId === schedule.id || (schedule.apiRequestId && execution.apiRequestId === schedule.apiRequestId)));
-            const active = selectedSchedule?.id === schedule.id;
-            const rule = ruleByScheduleId.get(schedule.id);
-            const incidentOpen = openIncidents.some((incident) => incident.scheduleId === schedule.id);
-            return (
-              <button key={schedule.id} className={`grid w-full grid-cols-[1.4fr_1fr_86px_110px_150px_110px_110px_150px] items-center border-b border-slate-800 px-4 py-4 text-left text-sm transition last:border-b-0 ${active ? 'bg-indigo-500/10' : 'hover:bg-slate-900/70'}`} onClick={() => setSelectedScheduleId(schedule.id)}>
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-slate-100">{schedule.targetType === 'WORKFLOW' ? collection?.name ?? 'Collection workflow' : request?.name ?? 'Unknown API'}</div>
-                  <div className="truncate text-xs text-slate-500">{schedule.targetType === 'WORKFLOW' ? 'Workflow schedule' : `${request?.method} ${request?.url}`}</div>
+          <div className="divide-y divide-slate-800">
+            {schedules.map((schedule) => {
+              const request = schedule.apiRequestId ? requestById.get(schedule.apiRequestId) : undefined;
+              const collection = schedule.collectionId ? collectionById.get(schedule.collectionId) : undefined;
+              const metrics = calculateMetrics(executions.filter((execution) => execution.scheduleId === schedule.id || (schedule.apiRequestId && execution.apiRequestId === schedule.apiRequestId)));
+              const active = selectedSchedule?.id === schedule.id;
+              const rule = ruleByScheduleId.get(schedule.id);
+              const incidentOpen = openIncidents.some((incident) => incident.scheduleId === schedule.id);
+              const title = schedule.targetType === 'WORKFLOW' ? collection?.name ?? 'Collection workflow' : request?.name ?? 'Unknown API';
+              const subtitle = schedule.targetType === 'WORKFLOW' ? 'Workflow schedule' : `${request?.method ?? ''} ${request?.url ?? ''}`;
+              return (
+                <div
+                  key={schedule.id}
+                  role="button"
+                  tabIndex={0}
+                  className={`group grid w-full cursor-pointer grid-cols-1 gap-4 px-4 py-4 text-left text-sm outline-none transition min-[1180px]:grid-cols-[minmax(220px,1.8fr)_118px_92px_104px_132px_100px_92px_172px] min-[1180px]:items-center min-[1180px]:gap-3 ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70 focus:bg-slate-900/70'}`}
+                  onClick={() => selectSchedule(schedule.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      selectSchedule(schedule.id);
+                    }
+                  }}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-semibold text-slate-100">{title}</span>
+                      <span className="rounded-md bg-slate-950/80 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-300 min-[1180px]:hidden">{formatSchedule(schedule)}</span>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-slate-500">{subtitle}</div>
+                  </div>
+                  <DataCell label="Schedule" className="hidden min-[1180px]:block">{formatSchedule(schedule)}</DataCell>
+                  <DataCell label="Status">
+                    <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
+                  </DataCell>
+                  <DataCell label="Alerts">
+                    <span className={`inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${incidentOpen ? 'bg-red-500/15 text-red-300' : rule?.enabled ? 'bg-indigo-500/15 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}>
+                      {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
+                      {incidentOpen ? 'OPEN' : rule?.enabled ? 'ON' : 'OFF'}
+                    </span>
+                  </DataCell>
+                  <DataCell label="Last run">{schedule.lastRunAt ? formatDateTime(schedule.lastRunAt) : 'Never'}</DataCell>
+                  <DataCell label="Latency" strong>{metrics.totalRuns ? `${metrics.avgLatencyMs.toFixed(0)} ms` : 'N/A'}</DataCell>
+                  <DataCell label="Success" strong>{metrics.totalRuns ? `${metrics.successRate.toFixed(0)}%` : 'N/A'}</DataCell>
+                  <div className="flex flex-wrap items-center gap-2 min-[1180px]:justify-end" onClick={(event) => event.stopPropagation()}>
+                    <ActionButton label={schedule.enabled ? 'Turn off' : 'Turn on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
+                    <IconButton label="Alert settings" onClick={() => setAlertSchedule(schedule)}><Bell size={15} /></IconButton>
+                    <IconButton label="Edit" onClick={() => openEdit(schedule)}><Edit3 size={15} /></IconButton>
+                    <IconButton label="Delete" danger onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /></IconButton>
+                  </div>
                 </div>
-                <div className="truncate text-slate-300">{formatSchedule(schedule)}</div>
-                <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${schedule.enabled ? 'bg-teal-500/15 text-teal-300' : 'bg-slate-800 text-slate-400'}`}>{schedule.enabled ? 'ON' : 'OFF'}</span>
-                <span className={`inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${incidentOpen ? 'bg-red-500/15 text-red-300' : rule?.enabled ? 'bg-indigo-500/15 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}>
-                  {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
-                  {incidentOpen ? 'OPEN' : rule?.enabled ? 'ON' : 'OFF'}
-                </span>
-                <div className="text-slate-400">{schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleString() : 'Never'}</div>
-                <div className="font-semibold text-slate-200">{metrics.totalRuns ? `${metrics.avgLatencyMs.toFixed(0)} ms` : 'N/A'}</div>
-                <div className="font-semibold text-slate-200">{metrics.totalRuns ? `${metrics.successRate.toFixed(0)}%` : 'N/A'}</div>
-                <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-                  <IconButton label={schedule.enabled ? 'Disable' : 'Enable'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /></IconButton>
-                  <IconButton label="Alert settings" onClick={() => setAlertSchedule(schedule)}><Bell size={15} /></IconButton>
-                  <IconButton label="Edit" onClick={() => openEdit(schedule)}><Edit3 size={15} /></IconButton>
-                  <IconButton label="Delete" danger onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /></IconButton>
-                </div>
-              </button>
-            );
-          })}
+              );
+            })}
+          </div>
 
           {schedules.length === 0 && <div className="p-6"><EmptyState title="No schedules yet" body="Create a monitor from a saved API request. Simple intervals are best for first-time users; cron is available for advanced scheduling." /></div>}
         </section>
@@ -228,15 +255,23 @@ function ScheduleDetailPanel({ collectionName, executions, incidents, isLoading,
           {isLoading && <span className="text-xs text-slate-500">Refreshing...</span>}
         </div>
         <div className="max-h-[430px] overflow-auto rounded-xl border border-slate-800">
+          {executions.length > 0 && (
+            <div className="grid grid-cols-[minmax(0,1.35fr)_90px_88px_64px] gap-3 border-b border-slate-800 bg-slate-950/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <div>Time</div>
+              <div>Status</div>
+              <div>Latency</div>
+              <div>Code</div>
+            </div>
+          )}
           {executions.map((execution) => (
-            <div key={execution.id} className="grid grid-cols-[1fr_82px_88px_88px] gap-3 border-b border-slate-800 px-3 py-3 text-sm last:border-b-0">
+            <div key={execution.id} className="grid grid-cols-[minmax(0,1.35fr)_90px_88px_64px] gap-3 border-b border-slate-800 px-4 py-3 text-sm last:border-b-0">
               <div className="min-w-0">
-                <div className="text-slate-200">{new Date(execution.executedAt).toLocaleString()}</div>
+                <div className="break-words leading-5 text-slate-200">{formatDateTime(execution.executedAt)}</div>
                 {execution.errorMessage && <div className="mt-1 truncate text-xs text-red-300">{execution.errorMessage}</div>}
               </div>
-              <div className={execution.success ? 'font-semibold text-teal-300' : 'font-semibold text-red-300'}>{execution.success ? 'Success' : 'Failure'}</div>
-              <div className="text-slate-300">{execution.responseTimeMs} ms</div>
-              <div className="text-slate-400">{execution.statusCode ?? 'N/A'}</div>
+              <div className={`min-w-0 truncate font-semibold ${execution.success ? 'text-teal-300' : 'text-red-300'}`}>{execution.success ? 'Success' : 'Failure'}</div>
+              <div className="whitespace-nowrap text-slate-300">{execution.responseTimeMs} ms</div>
+              <div className="whitespace-nowrap text-slate-400">{execution.statusCode ?? 'N/A'}</div>
             </div>
           ))}
           {executions.length === 0 && <div className="p-5 text-center text-sm text-slate-500">No scheduled executions yet. The next due run will appear here.</div>}
@@ -430,9 +465,51 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
   );
 }
 
+function DataCell({ children, className = '', label, strong = false }: { children: React.ReactNode; className?: string; label: string; strong?: boolean }) {
+  return (
+    <div className={`min-w-0 ${className}`}>
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 min-[1180px]:hidden">{label}</div>
+      <div className={`truncate ${strong ? 'font-semibold text-slate-100' : 'text-slate-300'}`}>{children}</div>
+    </div>
+  );
+}
+
+function StatusPill({ active, activeLabel, inactiveLabel }: { active: boolean; activeLabel: string; inactiveLabel: string }) {
+  return (
+    <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${active ? 'bg-teal-500/15 text-teal-300' : 'bg-slate-800 text-slate-400'}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-teal-300' : 'bg-slate-500'}`} />
+      {active ? activeLabel : inactiveLabel}
+    </span>
+  );
+}
+
+function ActionButton({ children, label, onClick }: { children: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      aria-label={label}
+      title={label}
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-xs font-semibold text-slate-200 transition hover:border-indigo-400 hover:bg-indigo-500/10 hover:text-white"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function IconButton({ children, danger = false, label, onClick }: { children: React.ReactNode; danger?: boolean; label: string; onClick: () => void }) {
   return (
-    <button aria-label={label} title={label} className={`rounded-lg p-2 transition ${danger ? 'text-red-300 hover:bg-red-950/40' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`} onClick={onClick}>
+    <button
+      aria-label={label}
+      title={label}
+      className={`rounded-lg p-2 transition ${danger ? 'text-red-300 hover:bg-red-950/40' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
       {children}
     </button>
   );
@@ -465,4 +542,16 @@ function calculateMetrics(executions: Execution[]) {
 function formatSchedule(schedule: Schedule) {
   if (schedule.scheduleType === 'INTERVAL') return `Every ${schedule.intervalMinutes} min`;
   return schedule.cronExpression ?? 'Cron';
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }).format(date);
 }
