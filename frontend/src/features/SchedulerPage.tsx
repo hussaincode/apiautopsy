@@ -80,6 +80,19 @@ export function SchedulerPage({
     setSelectedScheduleId(scheduleId);
   }
 
+  async function toggleAlertRule(schedule: Schedule, rule?: AlertRule) {
+    await saveAlertRule.mutateAsync({
+      scheduleId: schedule.id,
+      payload: {
+        enabled: !(rule?.enabled ?? false),
+        alertOnFailure: rule?.alertOnFailure ?? true,
+        latencyThresholdMs: rule?.latencyThresholdMs ?? 1500,
+        consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold ?? 1,
+        emailRecipients: rule?.emailRecipients ?? []
+      }
+    });
+  }
+
   return (
     <div className="h-[calc(100vh-48px)] overflow-auto bg-[#0c0c0c] p-6 text-slate-100">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -141,10 +154,18 @@ export function SchedulerPage({
                     <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
                   </DataCell>
                   <DataCell label="Alerts">
-                    <span className={`inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${incidentOpen ? 'bg-red-500/15 text-red-300' : rule?.enabled ? 'bg-indigo-500/15 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}>
+                    <button
+                      aria-label={rule?.enabled ? 'Turn alerts off' : 'Turn alerts on'}
+                      className={`inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition hover:scale-[1.03] disabled:cursor-wait disabled:opacity-60 ${incidentOpen ? 'bg-red-500/15 text-red-300 hover:bg-red-500/25' : rule?.enabled ? 'bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100'}`}
+                      disabled={saveAlertRule.isPending}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleAlertRule(schedule, rule);
+                      }}
+                    >
                       {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
                       {incidentOpen ? 'OPEN' : rule?.enabled ? 'ON' : 'OFF'}
-                    </span>
+                    </button>
                   </DataCell>
                   <DataCell label="Last run">{schedule.lastRunAt ? formatDateTime(schedule.lastRunAt) : 'Never'}</DataCell>
                   <DataCell label="Latency" strong>{metrics.totalRuns ? `${metrics.avgLatencyMs.toFixed(0)} ms` : 'N/A'}</DataCell>
