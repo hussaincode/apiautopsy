@@ -29,6 +29,11 @@ public class ScheduleController {
         return service.update(SecurityUtils.currentUser().id(), workspaceId, scheduleId, request);
     }
 
+    @PatchMapping("/{scheduleId}/enabled")
+    ScheduleDtos.ScheduleResponse toggleEnabled(@PathVariable UUID workspaceId, @PathVariable UUID scheduleId, @RequestBody ScheduleDtos.ToggleScheduleRequest request) {
+        return service.updateEnabled(SecurityUtils.currentUser().id(), workspaceId, scheduleId, request.enabled());
+    }
+
     @DeleteMapping("/{scheduleId}")
     void delete(@PathVariable UUID workspaceId, @PathVariable UUID scheduleId) {
         service.delete(SecurityUtils.currentUser().id(), workspaceId, scheduleId);

@@ -83,6 +83,27 @@ export function useUpdateSchedule(workspaceId?: string) {
   });
 }
 
+export function useToggleSchedule(workspaceId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => (await api.patch<Schedule>(`/workspaces/${workspaceId}/schedules/${id}/enabled`, { enabled })).data,
+    onMutate: async ({ id, enabled }) => {
+      await qc.cancelQueries({ queryKey: ['schedules', workspaceId] });
+      const previousSchedules = qc.getQueryData<Schedule[]>(['schedules', workspaceId]);
+      qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current?.map((schedule) => schedule.id === id ? { ...schedule, enabled } : schedule));
+      return { previousSchedules };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousSchedules) qc.setQueryData(['schedules', workspaceId], context.previousSchedules);
+    },
+    onSuccess: (schedule) => {
+      qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current?.map((item) => item.id === schedule.id ? schedule : item));
+      qc.invalidateQueries({ queryKey: ['schedule-detail', workspaceId, schedule.id] });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['schedules', workspaceId] })
+  });
+}
+
 export function useDeleteSchedule(workspaceId?: string) {
   const qc = useQueryClient();
   return useMutation({

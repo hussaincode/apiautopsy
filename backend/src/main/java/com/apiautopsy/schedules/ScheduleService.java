@@ -100,6 +100,16 @@ public class ScheduleService {
         return toResponse(schedule);
     }
 
+    @Transactional
+    public ScheduleDtos.ScheduleResponse updateEnabled(UUID userId, UUID workspaceId, UUID scheduleId, boolean enabled) {
+        workspaceService.requireMember(workspaceId, userId);
+        Schedule schedule = requireSchedule(workspaceId, scheduleId);
+        schedule.enabled = enabled;
+        schedule.nextRunAt = computeNext(schedule);
+        schedule.updatedAt = Instant.now();
+        return toResponse(schedule);
+    }
+
     @Scheduled(fixedDelayString = "${app.scheduler.poll-ms}")
     @Transactional
     public void runDueSchedules() {

@@ -13,6 +13,7 @@ import {
   useInviteUser,
   useRequests,
   useSchedules,
+  useToggleSchedule,
   useUpdateRequest,
   useUpdateSchedule,
   useWorkspaces,
@@ -64,6 +65,7 @@ export function Dashboard() {
   const updateRequest = useUpdateRequest(workspaceId);
   const createScheduleMutation = useCreateSchedule(workspaceId);
   const updateSchedule = useUpdateSchedule(workspaceId);
+  const toggleScheduleMutation = useToggleSchedule(workspaceId);
   const deleteSchedule = useDeleteSchedule(workspaceId);
   const execute = useExecute(workspaceId);
   const inviteUser = useInviteUser(workspaceId);
@@ -219,19 +221,8 @@ export function Dashboard() {
   }
 
   async function toggleSchedule(schedule: Schedule) {
-    await updateSchedule.mutateAsync({
-      id: schedule.id,
-        payload: {
-        apiRequestId: schedule.apiRequestId,
-        collectionId: schedule.collectionId,
-        targetType: schedule.targetType,
-        name: schedule.name,
-        scheduleType: schedule.scheduleType,
-        intervalMinutes: schedule.intervalMinutes,
-        cronExpression: schedule.cronExpression,
-        enabled: !schedule.enabled
-      }
-    });
+    await toggleScheduleMutation.mutateAsync({ id: schedule.id, enabled: !schedule.enabled });
+    setToast(`Schedule turned ${schedule.enabled ? 'off' : 'on'}`);
   }
 
   return (
