@@ -78,7 +78,7 @@ public class EmailService {
             message.setSubject(subject);
             message.setText(text);
             mailSender.send(message);
-        } catch (MailException ex) {
+        } catch (MailException | IllegalArgumentException ex) {
             log.error("Could not send alert email '{}'", subject, ex);
         }
     }

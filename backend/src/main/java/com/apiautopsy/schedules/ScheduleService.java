@@ -17,6 +17,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.time.Duration;
@@ -27,6 +29,7 @@ import java.util.UUID;
 
 @Service
 public class ScheduleService {
+    private static final Logger log = LoggerFactory.getLogger(ScheduleService.class);
     private final ScheduleRepository schedules;
     private final ApiRequestRepository requests;
     private final CollectionRepository collections;
@@ -102,14 +105,19 @@ public class ScheduleService {
     public void runDueSchedules() {
         List<Schedule> due = schedules.findTop25ByEnabledTrueAndNextRunAtLessThanEqualOrderByNextRunAtAsc(Instant.now());
         for (Schedule schedule : due) {
-            if (schedule.targetType == ScheduleTargetType.WORKFLOW) workflowService.runScheduled(schedule.workspace.id, schedule.collection.id, schedule);
-            else {
-                Execution execution = executionService.executeScheduled(schedule.apiRequest, schedule);
-                alertService.evaluateScheduleExecution(schedule, execution);
+            try {
+                if (schedule.targetType == ScheduleTargetType.WORKFLOW) workflowService.runScheduled(schedule.workspace.id, schedule.collection.id, schedule);
+                else {
+                    Execution execution = executionService.executeScheduled(schedule.apiRequest, schedule);
+                    alertService.evaluateScheduleExecution(schedule, execution);
+                }
+            } catch (RuntimeException ex) {
+                log.error("Scheduled run failed for schedule {}", schedule.id, ex);
+            } finally {
+                schedule.lastRunAt = Instant.now();
+                schedule.nextRunAt = computeNext(schedule);
+                schedule.updatedAt = Instant.now();
             }
-            schedule.lastRunAt = Instant.now();
-            schedule.nextRunAt = computeNext(schedule);
-            schedule.updatedAt = Instant.now();
         }
     }
 

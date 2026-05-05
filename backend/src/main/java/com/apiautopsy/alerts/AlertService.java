@@ -80,15 +80,19 @@ public class AlertService {
 
     @Transactional
     public void evaluateScheduleExecution(Schedule schedule, Execution execution) {
-        rules.findByScheduleId(schedule.id).ifPresent(rule -> {
-            if (!rule.enabled) return;
-            List<String> reasons = reasons(rule, execution);
-            if (reasons.isEmpty()) {
-                resolveOpenIncident(rule, execution);
-                return;
-            }
-            triggerIncident(rule, execution, String.join("; ", reasons));
-        });
+        try {
+            rules.findByScheduleId(schedule.id).ifPresent(rule -> {
+                if (!rule.enabled) return;
+                List<String> reasons = reasons(rule, execution);
+                if (reasons.isEmpty()) {
+                    resolveOpenIncident(rule, execution);
+                    return;
+                }
+                triggerIncident(rule, execution, String.join("; ", reasons));
+            });
+        } catch (RuntimeException ex) {
+            log.error("Alert evaluation failed for schedule {}", schedule.id, ex);
+        }
     }
 
     private List<String> reasons(AlertRule rule, Execution execution) {
