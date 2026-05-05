@@ -300,13 +300,14 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
           </label>
 
           <label className="block">
-            <FieldLabel>Email recipients</FieldLabel>
+            <FieldLabel>Additional alert emails</FieldLabel>
             <textarea
               className="min-h-24 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500"
-              placeholder="ops@company.com, founder@company.com"
+              placeholder="client@company.com, ops@company.com"
               value={draft.emailRecipients}
               onChange={(event) => setDraft({ ...draft, emailRecipients: event.target.value })}
             />
+            <p className="mt-2 text-xs leading-5 text-slate-500">The schedule creator is notified automatically. Add any teammate, client, or support inbox that should also receive alerts.</p>
           </label>
         </div>
 

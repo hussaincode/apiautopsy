@@ -2,6 +2,7 @@ package com.apiautopsy.schedules;
 
 import com.apiautopsy.requests.ApiRequest;
 import com.apiautopsy.collections.Collection;
+import com.apiautopsy.users.User;
 import com.apiautopsy.workspaces.Workspace;
 import jakarta.persistence.*;
 
@@ -15,6 +16,8 @@ public class Schedule {
     public UUID id;
     @ManyToOne(optional = false) @JoinColumn(name = "workspace_id")
     public Workspace workspace;
+    @ManyToOne @JoinColumn(name = "created_by_user_id")
+    public User createdBy;
     @ManyToOne @JoinColumn(name = "api_request_id")
     public ApiRequest apiRequest;
     @ManyToOne @JoinColumn(name = "collection_id")

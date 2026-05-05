@@ -134,7 +134,7 @@ public class AlertService {
         incident.lastErrorMessage = execution.errorMessage;
         if (!isNew) incident.triggerCount++;
         incidents.save(incident);
-        if (isNew) emailService.sendAlertTriggered(rule.emailRecipients, rule.schedule.name, reason);
+        if (isNew) emailService.sendAlertTriggered(recipients(rule), rule.schedule.name, reason);
     }
 
     private void resolveOpenIncident(AlertRule rule, Execution execution) {
@@ -144,8 +144,19 @@ public class AlertService {
             incident.resolvedAt = Instant.now();
             incident.lastTriggeredAt = Instant.now();
             incidents.save(incident);
-            emailService.sendAlertResolved(rule.emailRecipients, rule.schedule.name);
+            emailService.sendAlertResolved(recipients(rule), rule.schedule.name);
         });
+    }
+
+    private List<String> recipients(AlertRule rule) {
+        List<String> recipients = new ArrayList<>();
+        if (rule.schedule.createdBy != null && rule.schedule.createdBy.email != null) {
+            recipients.add(rule.schedule.createdBy.email);
+        } else if (rule.schedule.workspace.owner != null && rule.schedule.workspace.owner.email != null) {
+            recipients.add(rule.schedule.workspace.owner.email);
+        }
+        recipients.addAll(rule.emailRecipients == null ? List.of() : rule.emailRecipients);
+        return cleanRecipients(recipients);
     }
 
     private Schedule requireSchedule(UUID workspaceId, UUID scheduleId) {

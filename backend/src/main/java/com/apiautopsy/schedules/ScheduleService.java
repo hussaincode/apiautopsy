@@ -10,6 +10,7 @@ import com.apiautopsy.executions.ExecutionRepository;
 import com.apiautopsy.executions.ExecutionService;
 import com.apiautopsy.requests.ApiRequest;
 import com.apiautopsy.requests.ApiRequestRepository;
+import com.apiautopsy.users.UserRepository;
 import com.apiautopsy.workspaces.WorkspaceService;
 import com.apiautopsy.workflows.WorkflowService;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -34,8 +35,9 @@ public class ScheduleService {
     private final ExecutionRepository executions;
     private final WorkflowService workflowService;
     private final AlertService alertService;
+    private final UserRepository users;
 
-    public ScheduleService(ScheduleRepository schedules, ApiRequestRepository requests, CollectionRepository collections, WorkspaceService workspaceService, ExecutionService executionService, ExecutionRepository executions, WorkflowService workflowService, AlertService alertService) {
+    public ScheduleService(ScheduleRepository schedules, ApiRequestRepository requests, CollectionRepository collections, WorkspaceService workspaceService, ExecutionService executionService, ExecutionRepository executions, WorkflowService workflowService, AlertService alertService, UserRepository users) {
         this.schedules = schedules;
         this.requests = requests;
         this.collections = collections;
@@ -44,6 +46,7 @@ public class ScheduleService {
         this.executions = executions;
         this.workflowService = workflowService;
         this.alertService = alertService;
+        this.users = users;
     }
 
     public List<ScheduleDtos.ScheduleResponse> list(UUID userId, UUID workspaceId) {
@@ -55,6 +58,7 @@ public class ScheduleService {
     public ScheduleDtos.ScheduleResponse create(UUID userId, UUID workspaceId, ScheduleDtos.ScheduleRequest dto) {
         workspaceService.requireMember(workspaceId, userId);
         Schedule schedule = new Schedule();
+        schedule.createdBy = users.findById(userId).orElseThrow(() -> new NotFoundException("User not found"));
         applyTarget(schedule, workspaceId, dto);
         apply(schedule, dto);
         schedules.save(schedule);
