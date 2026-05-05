@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "backend/**"
-      - ".github/workflows/deploy-backend-azure.yml"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +15,6 @@ permissions:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   IMAGE_NAME: ghcr.io/hussaincode/apiautopsy-backend
-  AZURE_CREDENTIALS_PRESENT: ${{ secrets.AZURE_CREDENTIALS != '' && 'true' || 'false' }}
 
 jobs:
   build-and-deploy:
@@ -55,17 +54,21 @@ jobs:
 
       - name: Validate Azure deployment secrets
         if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          AZURE_CONTAINER_APP_NAME: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
         run: |
           missing=0
-          if [ "${{ env.AZURE_CREDENTIALS_PRESENT }}" != "true" ]; then
+          if [ -z "$AZURE_CREDENTIALS" ]; then
             echo "::error::Missing GitHub secret AZURE_CREDENTIALS. Image was pushed to GHCR, but Azure deployment cannot run."
             missing=1
           fi
-          if [ -z "${{ secrets.AZURE_CONTAINER_APP_NAME }}" ]; then
+          if [ -z "$AZURE_CONTAINER_APP_NAME" ]; then
             echo "::error::Missing GitHub secret AZURE_CONTAINER_APP_NAME."
             missing=1
           fi
-          if [ -z "${{ secrets.AZURE_RESOURCE_GROUP }}" ]; then
+          if [ -z "$AZURE_RESOURCE_GROUP" ]; then
             echo "::error::Missing GitHub secret AZURE_RESOURCE_GROUP."
             missing=1
           fi
