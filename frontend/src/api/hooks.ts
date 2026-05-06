@@ -70,16 +70,23 @@ export function useExecute(workspaceId?: string) {
 export function useCreateSchedule(workspaceId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Partial<Schedule>) => (await api.post(`/workspaces/${workspaceId}/schedules`, payload)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedules', workspaceId] })
+    mutationFn: async (payload: Partial<Schedule>) => (await api.post<Schedule>(`/workspaces/${workspaceId}/schedules`, payload)).data,
+    onSuccess: (schedule) => {
+      qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current ? [schedule, ...current.filter((item) => item.id !== schedule.id)] : [schedule]);
+      qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
+    }
   });
 }
 
 export function useUpdateSchedule(workspaceId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Schedule> }) => (await api.put(`/workspaces/${workspaceId}/schedules/${id}`, payload)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedules', workspaceId] })
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Schedule> }) => (await api.put<Schedule>(`/workspaces/${workspaceId}/schedules/${id}`, payload)).data,
+    onSuccess: (schedule) => {
+      qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current?.map((item) => item.id === schedule.id ? schedule : item) ?? [schedule]);
+      qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
+      qc.invalidateQueries({ queryKey: ['schedule-detail', workspaceId, schedule.id] });
+    }
   });
 }
 

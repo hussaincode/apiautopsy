@@ -39,7 +39,7 @@ export function SchedulerPage({
   collections?: Collection[];
   onCreateSchedule: (payload: SchedulePayload) => void;
   onDeleteSchedule: (schedule: Schedule) => Promise<void> | void;
-  onSaveSchedule: (scheduleId: string | undefined, payload: SchedulePayload) => Promise<void>;
+  onSaveSchedule: (scheduleId: string | undefined, payload: SchedulePayload) => Promise<Schedule | unknown>;
   onToggleSchedule: (schedule: Schedule) => Promise<void> | void;
 }) {
   const [modalSchedule, setModalSchedule] = useState<Schedule | undefined>();
@@ -159,7 +159,14 @@ export function SchedulerPage({
                   </div>
                   <DataCell label="Schedule" className="hidden min-[1180px]:block">{formatSchedule(schedule)}</DataCell>
                   <DataCell label="Status">
-                    <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
+                    <div className="flex flex-wrap gap-2">
+                      <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
+                      {schedule.publicStatusEnabled && schedule.publicSlug && (
+                        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-indigo-500/15 px-3 py-1 text-xs font-bold text-indigo-200">
+                          <Globe2 size={12} />Status page
+                        </span>
+                      )}
+                    </div>
                   </DataCell>
                   <DataCell label="Alerts">
                     <button
@@ -215,7 +222,8 @@ export function SchedulerPage({
           schedule={modalSchedule}
           onClose={() => setModalOpen(false)}
           onSave={async (payload) => {
-            await onSaveSchedule(modalSchedule?.id, payload);
+            const saved = await onSaveSchedule(modalSchedule?.id, payload);
+            if (isSchedule(saved)) setSelectedScheduleId(saved.id);
             setModalOpen(false);
           }}
         />
@@ -235,6 +243,10 @@ export function SchedulerPage({
       )}
     </div>
   );
+}
+
+function isSchedule(value: unknown): value is Schedule {
+  return Boolean(value && typeof value === 'object' && 'id' in value && 'name' in value);
 }
 
 function ScheduleDetailPanel({ assertions, collectionName, executions, incidents, isLoading, metrics, onCreateAssertion, onDeleteAssertion, onResolveIncident, request, schedule }: { assertions: ScheduleAssertion[]; collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onCreateAssertion: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDeleteAssertion: (assertionId: string) => Promise<unknown>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {

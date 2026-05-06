@@ -228,13 +228,13 @@ export function Dashboard() {
     }
   }
 
-  function createSchedule(payload: { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
+  function createSchedule(payload: Partial<Schedule> & { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
     createScheduleMutation.mutate(payload);
   }
 
-  async function saveSchedule(scheduleId: string | undefined, payload: { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
-    if (scheduleId) await updateSchedule.mutateAsync({ id: scheduleId, payload });
-    else await createScheduleMutation.mutateAsync(payload);
+  async function saveSchedule(scheduleId: string | undefined, payload: Partial<Schedule> & { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
+    if (scheduleId) return updateSchedule.mutateAsync({ id: scheduleId, payload });
+    return createScheduleMutation.mutateAsync(payload);
   }
 
   async function removeSchedule(schedule: Schedule) {
