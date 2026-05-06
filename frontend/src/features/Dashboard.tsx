@@ -346,10 +346,8 @@ function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings 
   const displayName = displayEmail.split('@')[0].replace(/[._-]+/g, ' ');
   return (
     <header className="flex h-12 min-w-0 items-center border-b border-slate-800 bg-[#111827] px-3 text-slate-100 shadow-lg shadow-black/20">
-      <div className="mr-4 hidden shrink-0 items-center gap-2 text-slate-500 sm:flex">
-        <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-        <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
-        <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+      <div className="mr-4 flex shrink-0 items-center gap-2">
+        <img className="h-8 w-8 rounded-xl shadow-lg shadow-teal-950/30" src="/logo-mark.svg" alt="APIAutopsy" />
       </div>
       <nav className="hidden shrink-0 items-center gap-5 text-[15px] xl:flex">
         <button className="font-medium">Home</button>

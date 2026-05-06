@@ -1,6 +1,7 @@
-import { KeyRound, Send, ShieldCheck } from 'lucide-react';
+import { KeyRound, Plus, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Button, FieldLabel, Input, Select } from '../components/ui';
+import { useEffect, useState } from 'react';
+import { FieldLabel, Input, Select } from '../components/ui';
 import type { ApiRequest, Certificate, Collection, HttpMethod } from '../types/domain';
 import type { BuilderTab, RawBodyFormat, RequestBodyMode, RequestDraft } from './dashboardTypes';
 
@@ -57,8 +58,8 @@ export function RequestBuilder({
       </div>
 
       <div className="p-5">
-        {activeTab === 'params' && <JsonEditor title="Query parameters" helper={'Use simple JSON. Example: { "page": 1 }'} value={draft.params} onChange={(params) => onDraft({ ...draft, params })} />}
-        {activeTab === 'headers' && <JsonEditor title="Headers" helper="Add request headers as JSON key/value pairs." value={draft.headers} onChange={(headers) => onDraft({ ...draft, headers })} />}
+        {activeTab === 'params' && <KeyValueEditor title="Query parameters" helper="Add URL query parameters as key and value pairs." value={draft.params} onChange={(params) => onDraft({ ...draft, params })} />}
+        {activeTab === 'headers' && <KeyValueEditor title="Headers" helper="Add request headers as key and value pairs." value={draft.headers} onChange={(headers) => onDraft({ ...draft, headers })} />}
         {activeTab === 'body' && (
           <>
             <div className="mb-4 flex flex-wrap items-center gap-5 text-sm text-slate-300">
@@ -132,6 +133,107 @@ function JsonEditor({ title, helper, value, onChange }: { title: string; helper:
       <textarea className="h-40 w-full resize-none rounded-xl border border-slate-700 bg-slate-950 p-4 font-mono text-sm leading-6 text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-indigo-500" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
+}
+
+type KeyValueRow = { id: string; key: string; value: string; enabled: boolean };
+
+function KeyValueEditor({ title, helper, value, onChange }: { title: string; helper: string; value: string; onChange: (value: string) => void }) {
+  const [rows, setRows] = useState(() => jsonToRows(value));
+
+  useEffect(() => {
+    if (value !== rowsToJson(rows)) setRows(jsonToRows(value));
+  }, [value]);
+
+  function commit(nextRows: KeyValueRow[]) {
+    setRows(nextRows);
+    onChange(rowsToJson(nextRows));
+  }
+
+  function updateRow(id: string, patch: Partial<KeyValueRow>) {
+    commit(rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+  }
+
+  function addRow() {
+    commit([...rows.filter((row) => row.key || row.value), emptyKeyValueRow()]);
+  }
+
+  function removeRow(id: string) {
+    const nextRows = rows.filter((row) => row.id !== id);
+    commit(nextRows.length ? nextRows : [emptyKeyValueRow()]);
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase text-slate-500">{title}</div>
+          <p className="mt-1 text-sm text-slate-400">{helper}</p>
+        </div>
+        <button className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 text-sm font-semibold text-slate-200 transition hover:border-indigo-400 hover:text-white" onClick={addRow}>
+          <Plus size={15} />Add
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/70">
+        <div className="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_48px] border-b border-slate-800 bg-slate-950 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div />
+          <div>Key</div>
+          <div>Value</div>
+          <div />
+        </div>
+        <div className="divide-y divide-slate-800">
+          {rows.map((row) => (
+            <div key={row.id} className="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_48px] items-center gap-2 px-3 py-2">
+              <input className="h-4 w-4 accent-indigo-500" type="checkbox" checked={row.enabled} onChange={(event) => updateRow(row.id, { enabled: event.target.checked })} aria-label={`Enable ${row.key || 'row'}`} />
+              <input className="h-10 min-w-0 rounded-lg border border-slate-800 bg-[#050816] px-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-indigo-500" placeholder="key" value={row.key} onChange={(event) => updateRow(row.id, { key: event.target.value })} />
+              <input className="h-10 min-w-0 rounded-lg border border-slate-800 bg-[#050816] px-3 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-indigo-500" placeholder="value" value={row.value} onChange={(event) => updateRow(row.id, { value: event.target.value })} />
+              <button className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-red-950/40 hover:text-red-300" onClick={() => removeRow(row.id)} aria-label="Remove row">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function jsonToRows(value: string): KeyValueRow[] {
+  try {
+    const parsed = JSON.parse(value || '{}') as Record<string, unknown>;
+    const rows = Object.entries(parsed ?? {}).map(([key, rowValue]) => ({
+      id: keyValueRowId(key),
+      key,
+      value: stringifyCellValue(rowValue),
+      enabled: true
+    }));
+    return rows.length ? rows : [emptyKeyValueRow()];
+  } catch {
+    return [emptyKeyValueRow()];
+  }
+}
+
+function rowsToJson(rows: KeyValueRow[]) {
+  const data = rows.reduce<Record<string, string>>((acc, row) => {
+    if (row.enabled && row.key.trim()) acc[row.key.trim()] = row.value;
+    return acc;
+  }, {});
+  return JSON.stringify(data, null, 2);
+}
+
+function emptyKeyValueRow(): KeyValueRow {
+  return { id: `row-${Date.now()}-${Math.random().toString(16).slice(2)}`, key: '', value: '', enabled: true };
+}
+
+function keyValueRowId(key: string) {
+  return `row-${key}`;
+}
+
+function stringifyCellValue(value: unknown) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
 }
 
 function AuthPanel({ draft, onDraft }: { draft: RequestDraft; onDraft: (draft: RequestDraft) => void }) {
