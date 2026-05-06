@@ -26,7 +26,8 @@ describe('PublicStatusPage', () => {
     render(<PublicStatusPage slug="production-health" />);
 
     expect(screen.getByText('Production health')).toBeInTheDocument();
-    expect(screen.getByText('OPERATIONAL')).toBeInTheDocument();
+    expect(screen.getByText('Operational')).toBeInTheDocument();
+    expect(screen.getByText('Public API health page for clients and teams')).toBeInTheDocument();
     expect(screen.getByText('99.9%')).toBeInTheDocument();
     expect(screen.getByText('220 ms')).toBeInTheDocument();
   });

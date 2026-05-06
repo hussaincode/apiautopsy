@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Edit3, Plus, Power, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Copy, Edit3, ExternalLink, Gauge, Globe2, Info, Plus, Power, SearchCheck, ShieldCheck, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAlertIncidents, useAlertRules, useCreateAssertion, useDeleteAssertion, useResolveAlertIncident, useSaveAlertRule, useScheduleAssertions, useScheduleDetail } from '../api/hooks';
 import { Button, EmptyState, FieldLabel, Input, Select } from '../components/ui';
@@ -95,8 +95,7 @@ export function SchedulerPage({
         alertOnFailure: rule?.alertOnFailure ?? true,
         latencyThresholdMs: rule?.latencyThresholdMs ?? 1500,
         consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold ?? 1,
-        emailRecipients: rule?.emailRecipients ?? []
-        ,
+        emailRecipients: rule?.emailRecipients ?? [],
         webhookUrl: rule?.webhookUrl
       }
     });
@@ -114,7 +113,7 @@ export function SchedulerPage({
         </button>
       </div>
 
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(420px,0.9fr)]">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(520px,1fr)_minmax(360px,440px)]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
           <div className="hidden grid-cols-[minmax(220px,1.8fr)_118px_92px_104px_132px_100px_92px_172px] gap-3 border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 min-[1180px]:grid">
             <div>API</div>
@@ -244,27 +243,43 @@ function ScheduleDetailPanel({ assertions, collectionName, executions, incidents
   }
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
       <div className="border-b border-slate-800 p-5">
         <div className="text-xs font-semibold uppercase text-slate-500">Monitor detail</div>
         <h2 className="mt-1 truncate text-lg font-semibold text-slate-100">{schedule.name}</h2>
         <p className="mt-1 truncate text-sm text-slate-400">{schedule.targetType === 'WORKFLOW' ? `Workflow: ${collectionName ?? 'Collection'}` : `${request?.method} ${request?.url}`}</p>
       </div>
 
+      <div className="p-5 pb-0">
+        <PublicStatusCard schedule={schedule} />
+      </div>
+
       <div className="grid grid-cols-2 gap-3 p-5">
-        <MetricCard icon={<Activity size={16} />} label="Total runs" value={metrics.totalRuns} />
-        <MetricCard icon={<CheckCircle2 size={16} />} label="Success" value={`${metrics.successRate.toFixed(1)}%`} />
-        <MetricCard icon={<Clock3 size={16} />} label="P95 latency" value={`${(metrics.p95LatencyMs ?? metrics.avgLatencyMs).toFixed(0)} ms`} tone={metrics.latencySloMet === false ? 'bad' : 'normal'} />
-        <MetricCard icon={<X size={16} />} label="Error budget" value={`${(metrics.errorBudgetRemainingPercent ?? 100).toFixed(0)}%`} tone={(metrics.errorBudgetRemainingPercent ?? 100) <= 0 ? 'bad' : 'normal'} />
+        <MetricCard icon={<Activity size={16} />} label="Checks run" value={metrics.totalRuns} description="How many scheduled checks APIAutopsy has executed." />
+        <MetricCard icon={<CheckCircle2 size={16} />} label="Healthy checks" value={`${metrics.successRate.toFixed(1)}%`} description="Runs that passed HTTP and response checks." />
+        <MetricCard icon={<Gauge size={16} />} label="Typical slowest response" value={`${(metrics.p95LatencyMs ?? metrics.avgLatencyMs).toFixed(0)} ms`} description="p95 latency: 95% of checks were this fast or faster." tone={metrics.latencySloMet === false ? 'bad' : 'normal'} />
+        <MetricCard icon={<X size={16} />} label="Error budget left" value={`${(metrics.errorBudgetRemainingPercent ?? 100).toFixed(0)}%`} description="How much failure room remains before the uptime target is missed." tone={(metrics.errorBudgetRemainingPercent ?? 100) <= 0 ? 'bad' : 'normal'} />
       </div>
 
       <div className="px-5 pb-5">
-        <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300 sm:grid-cols-2">
-          <div><span className="text-slate-500">Uptime SLO</span><div className="mt-1 font-semibold text-slate-100">{schedule.sloUptimeTarget ?? 99}% target</div></div>
-          <div><span className="text-slate-500">Latency SLO</span><div className="mt-1 font-semibold text-slate-100">p95 under {schedule.sloLatencyP95Ms ?? 1000} ms</div></div>
-          {schedule.publicStatusEnabled && schedule.publicSlug && (
-            <a className="sm:col-span-2 truncate text-indigo-300 hover:text-indigo-200" href={`/status/${schedule.publicSlug}`} target="_blank" rel="noreferrer">Public status: /status/{schedule.publicSlug}</a>
-          )}
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300">
+          <div className="flex items-start gap-2">
+            <Info className="mt-0.5 text-indigo-300" size={16} />
+            <div>
+              <div className="font-semibold text-slate-100">Health targets</div>
+              <p className="mt-1 leading-5 text-slate-500">These targets decide whether the monitor appears healthy, degraded, or down on the status page.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-slate-950/70 p-3">
+              <span className="text-xs uppercase text-slate-500">Uptime target</span>
+              <div className="mt-1 font-semibold text-slate-100">{schedule.sloUptimeTarget ?? 99}% of checks should pass</div>
+            </div>
+            <div className="rounded-lg bg-slate-950/70 p-3">
+              <span className="text-xs uppercase text-slate-500">Latency target</span>
+              <div className="mt-1 font-semibold text-slate-100">p95 response under {schedule.sloLatencyP95Ms ?? 1000} ms</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -326,6 +341,57 @@ function ScheduleDetailPanel({ assertions, collectionName, executions, incidents
         </div>
       </div>
     </section>
+  );
+}
+
+function PublicStatusCard({ schedule }: { schedule: Schedule }) {
+  const [copied, setCopied] = useState(false);
+  const publicPath = schedule.publicStatusEnabled && schedule.publicSlug ? `/status/${schedule.publicSlug}` : undefined;
+  const publicUrl = publicPath && typeof window !== 'undefined' ? `${window.location.origin}${publicPath}` : publicPath;
+
+  async function copyLink() {
+    if (!publicUrl) return;
+    await navigator.clipboard?.writeText(publicUrl);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-indigo-400/20 bg-indigo-500/10">
+      <div className="flex items-start gap-3 p-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-400/15 text-indigo-200">
+          <Globe2 size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold text-slate-100">Public status page</h3>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${publicPath ? 'bg-teal-500/15 text-teal-300' : 'bg-slate-800 text-slate-400'}`}>
+              {publicPath ? 'Published' : 'Not published'}
+            </span>
+          </div>
+          <p className="mt-1 text-sm leading-5 text-slate-400">
+            Share this read-only page with clients or teammates. It shows API health, uptime, and recent checks without exposing response bodies or secrets.
+          </p>
+          {publicPath ? (
+            <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950/70 p-2">
+              <div className="truncate font-mono text-xs text-slate-300">{publicUrl}</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-indigo-500 px-3 text-xs font-semibold text-white transition hover:bg-indigo-400" href={publicPath} target="_blank" rel="noreferrer">
+                  <ExternalLink size={14} />Open page
+                </a>
+                <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-200 transition hover:border-indigo-400 hover:text-white" onClick={copyLink}>
+                  <Copy size={14} />{copied ? 'Copied' : 'Copy link'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs leading-5 text-slate-500">
+              Turn on "Publish read-only status page" when creating or editing this schedule to get a shareable `/status/...` link.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -518,10 +584,12 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
             <input type="checkbox" checked={draft.publicStatusEnabled} onChange={(event) => setDraft({ ...draft, publicStatusEnabled: event.target.checked })} />
             Publish read-only status page
           </label>
+          <p className="-mt-2 text-xs leading-5 text-slate-500">Creates a client-safe page with current health, uptime, latency, and recent checks. Response bodies and secrets are never shown.</p>
           {draft.publicStatusEnabled && (
             <label className="block">
-              <FieldLabel>Status page slug</FieldLabel>
+              <FieldLabel>Public URL slug</FieldLabel>
               <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" placeholder="production-health" value={draft.publicSlug} onChange={(event) => setDraft({ ...draft, publicSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} />
+              <p className="mt-2 truncate text-xs text-slate-500">Preview: /status/{draft.publicSlug || 'production-health'}</p>
             </label>
           )}
         </div>
@@ -561,6 +629,7 @@ function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: Sched
     maxResponseSizeBytes: '50000'
   });
   const [busy, setBusy] = useState(false);
+  const expectedReady = isAssertionExpectedValueReady(draft);
 
   async function addAssertion() {
     setBusy(true);
@@ -583,47 +652,94 @@ function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: Sched
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-100">Response assertions</h3>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100"><SearchCheck size={16} />Response checks</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">These checks decide if a run is healthy. Use them to catch bad responses even when the API returns HTTP 200.</p>
+        </div>
         <span className="text-xs text-slate-500">{assertions.length} checks</span>
       </div>
-      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-        <div className="grid gap-2 md:grid-cols-[1.2fr_1fr_1fr_auto]">
-          <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          <Select className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as AssertionType })}>
-            <option value="STATUS_CODE">Status code</option>
-            <option value="JSON_PATH_EXISTS">JSON path exists</option>
-            <option value="JSON_PATH_EQUALS">JSON path equals</option>
-            <option value="BODY_CONTAINS">Body contains</option>
-            <option value="MAX_LATENCY_MS">Max latency</option>
-            <option value="MAX_RESPONSE_SIZE_BYTES">Max response size</option>
-          </Select>
-          {draft.type === 'STATUS_CODE' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.expectedStatusCode} onChange={(event) => setDraft({ ...draft, expectedStatusCode: event.target.value })} />}
-          {draft.type === 'JSON_PATH_EXISTS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.jsonPath} onChange={(event) => setDraft({ ...draft, jsonPath: event.target.value })} />}
-          {draft.type === 'JSON_PATH_EQUALS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="$.token = value" value={`${draft.jsonPath} = ${draft.expectedValue}`} onChange={(event) => {
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+        <div className="grid min-w-0 gap-3">
+          <label className="min-w-0">
+            <FieldLabel>Check name</FieldLabel>
+            <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+          </label>
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <label className="min-w-0">
+              <FieldLabel>Check type</FieldLabel>
+              <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as AssertionType })}>
+                <option value="STATUS_CODE">Status code is</option>
+                <option value="JSON_PATH_EXISTS">JSON field exists</option>
+                <option value="JSON_PATH_EQUALS">JSON field equals</option>
+                <option value="BODY_CONTAINS">Body contains text</option>
+                <option value="MAX_LATENCY_MS">Response is faster than</option>
+                <option value="MAX_RESPONSE_SIZE_BYTES">Response size under</option>
+              </Select>
+            </label>
+            <label className="min-w-0">
+              <FieldLabel>{expectedFieldLabel(draft.type)}</FieldLabel>
+              {draft.type === 'STATUS_CODE' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="numeric" value={draft.expectedStatusCode} onChange={(event) => setDraft({ ...draft, expectedStatusCode: event.target.value })} />}
+              {draft.type === 'JSON_PATH_EXISTS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="$.data.id" value={draft.jsonPath} onChange={(event) => setDraft({ ...draft, jsonPath: event.target.value })} />}
+              {draft.type === 'JSON_PATH_EQUALS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="$.status = active" value={`${draft.jsonPath} = ${draft.expectedValue}`} onChange={(event) => {
             const [path, ...value] = event.target.value.split('=');
             setDraft({ ...draft, jsonPath: path.trim(), expectedValue: value.join('=').trim() });
-          }} />}
-          {draft.type === 'BODY_CONTAINS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.containsText} onChange={(event) => setDraft({ ...draft, containsText: event.target.value })} />}
-          {draft.type === 'MAX_LATENCY_MS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.maxLatencyMs} onChange={(event) => setDraft({ ...draft, maxLatencyMs: event.target.value })} />}
-          {draft.type === 'MAX_RESPONSE_SIZE_BYTES' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.maxResponseSizeBytes} onChange={(event) => setDraft({ ...draft, maxResponseSizeBytes: event.target.value })} />}
-          <button className="rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={busy || !draft.name.trim()} onClick={addAssertion}>Add</button>
+              }} />}
+              {draft.type === 'BODY_CONTAINS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="healthy" value={draft.containsText} onChange={(event) => setDraft({ ...draft, containsText: event.target.value })} />}
+              {draft.type === 'MAX_LATENCY_MS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="numeric" value={draft.maxLatencyMs} onChange={(event) => setDraft({ ...draft, maxLatencyMs: event.target.value })} />}
+              {draft.type === 'MAX_RESPONSE_SIZE_BYTES' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="numeric" value={draft.maxResponseSizeBytes} onChange={(event) => setDraft({ ...draft, maxResponseSizeBytes: event.target.value })} />}
+            </label>
+          </div>
+          <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-fit" disabled={busy || !draft.name.trim() || !expectedReady} onClick={addAssertion}>
+            <Plus size={15} />Add response check
+          </button>
         </div>
         <div className="mt-3 divide-y divide-slate-800">
           {assertions.map((assertion) => (
             <div key={assertion.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0">
                 <div className="truncate font-semibold text-slate-200">{assertion.name}</div>
-                <div className="text-xs text-slate-500">{assertion.type.replace(/_/g, ' ')}</div>
+                <div className="text-xs text-slate-500">{describeAssertion(assertion)}</div>
               </div>
               <button className="rounded-lg p-2 text-red-300 hover:bg-red-950/40" aria-label={`Delete assertion ${assertion.name}`} onClick={() => onDelete(assertion.id)}><Trash2 size={15} /></button>
             </div>
           ))}
-          {assertions.length === 0 && <div className="py-3 text-center text-sm text-slate-500">Add checks for status, JSON fields, body text, latency, or response size.</div>}
+          {assertions.length === 0 && <div className="py-3 text-center text-sm text-slate-500">Start with "Status code is 200", then add JSON, body text, latency, or response-size checks when needed.</div>}
         </div>
       </div>
     </div>
   );
+}
+
+function expectedFieldLabel(type: AssertionType) {
+  switch (type) {
+    case 'STATUS_CODE': return 'Expected status code';
+    case 'JSON_PATH_EXISTS': return 'JSON path to find';
+    case 'JSON_PATH_EQUALS': return 'JSON path and expected value';
+    case 'BODY_CONTAINS': return 'Text that must appear';
+    case 'MAX_LATENCY_MS': return 'Maximum milliseconds';
+    case 'MAX_RESPONSE_SIZE_BYTES': return 'Maximum bytes';
+  }
+}
+
+function isAssertionExpectedValueReady(draft: { type: AssertionType; expectedStatusCode: string; jsonPath: string; expectedValue: string; containsText: string; maxLatencyMs: string; maxResponseSizeBytes: string }) {
+  if (draft.type === 'STATUS_CODE') return Number.isFinite(Number(draft.expectedStatusCode));
+  if (draft.type === 'JSON_PATH_EXISTS') return draft.jsonPath.trim().startsWith('$.');
+  if (draft.type === 'JSON_PATH_EQUALS') return draft.jsonPath.trim().startsWith('$.') && draft.expectedValue.trim().length > 0;
+  if (draft.type === 'BODY_CONTAINS') return draft.containsText.trim().length > 0;
+  if (draft.type === 'MAX_LATENCY_MS') return Number(draft.maxLatencyMs) > 0;
+  return Number(draft.maxResponseSizeBytes) > 0;
+}
+
+function describeAssertion(assertion: ScheduleAssertion) {
+  switch (assertion.type) {
+    case 'STATUS_CODE': return `Status code must be ${assertion.expectedStatusCode}`;
+    case 'JSON_PATH_EXISTS': return `JSON path must exist: ${assertion.jsonPath}`;
+    case 'JSON_PATH_EQUALS': return `${assertion.jsonPath} must equal ${assertion.expectedValue}`;
+    case 'BODY_CONTAINS': return `Body must contain "${assertion.containsText}"`;
+    case 'MAX_LATENCY_MS': return `Response must be under ${assertion.maxLatencyMs} ms`;
+    case 'MAX_RESPONSE_SIZE_BYTES': return `Response must be under ${assertion.maxResponseSizeBytes} bytes`;
+  }
 }
 
 function DataCell({ children, className = '', label, strong = false }: { children: React.ReactNode; className?: string; label: string; strong?: boolean }) {
@@ -676,11 +792,12 @@ function IconButton({ children, danger = false, label, onClick }: { children: Re
   );
 }
 
-function MetricCard({ icon, label, tone = 'normal', value }: { icon: React.ReactNode; label: string; tone?: 'normal' | 'bad'; value: React.ReactNode }) {
+function MetricCard({ description, icon, label, tone = 'normal', value }: { description?: string; icon: React.ReactNode; label: string; tone?: 'normal' | 'bad'; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+    <div className="min-w-0 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-slate-500">{icon}{label}</div>
       <div className={`text-xl font-semibold ${tone === 'bad' ? 'text-red-300' : 'text-slate-100'}`}>{value}</div>
+      {description && <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>}
     </div>
   );
 }
