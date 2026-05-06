@@ -115,14 +115,11 @@ export function SchedulerPage({
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(520px,1fr)_minmax(360px,440px)]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
-          <div className="hidden grid-cols-[minmax(220px,1.8fr)_118px_92px_104px_132px_100px_92px_172px] gap-3 border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 min-[1180px]:grid">
+          <div className="hidden grid-cols-[minmax(220px,1.8fr)_118px_140px_104px_164px] gap-3 border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 min-[1180px]:grid">
             <div>API</div>
             <div>Schedule</div>
             <div>Status</div>
             <div>Alerts</div>
-            <div>Last run</div>
-            <div>Latency</div>
-            <div>Success</div>
             <div className="text-right">Actions</div>
           </div>
 
@@ -130,7 +127,6 @@ export function SchedulerPage({
             {schedules.map((schedule) => {
               const request = schedule.apiRequestId ? requestById.get(schedule.apiRequestId) : undefined;
               const collection = schedule.collectionId ? collectionById.get(schedule.collectionId) : undefined;
-              const metrics = calculateMetrics(executions.filter((execution) => execution.scheduleId === schedule.id || (schedule.apiRequestId && execution.apiRequestId === schedule.apiRequestId)));
               const active = selectedSchedule?.id === schedule.id;
               const rule = ruleByScheduleId.get(schedule.id);
               const incidentOpen = openIncidents.some((incident) => incident.scheduleId === schedule.id);
@@ -141,7 +137,7 @@ export function SchedulerPage({
                   key={schedule.id}
                   role="button"
                   tabIndex={0}
-                  className={`group grid w-full cursor-pointer grid-cols-1 gap-4 px-4 py-4 text-left text-sm outline-none transition min-[1180px]:grid-cols-[minmax(220px,1.8fr)_118px_92px_104px_132px_100px_92px_172px] min-[1180px]:items-center min-[1180px]:gap-3 ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70 focus:bg-slate-900/70'}`}
+                  className={`group grid w-full cursor-pointer grid-cols-1 gap-4 px-4 py-4 text-left text-sm outline-none transition min-[1180px]:grid-cols-[minmax(220px,1.8fr)_118px_140px_104px_164px] min-[1180px]:items-center min-[1180px]:gap-3 ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70 focus:bg-slate-900/70'}`}
                   onClick={() => selectSchedule(schedule.id)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -182,14 +178,10 @@ export function SchedulerPage({
                       {incidentOpen ? 'OPEN' : rule?.enabled ? 'ON' : 'OFF'}
                     </button>
                   </DataCell>
-                  <DataCell label="Last run">{schedule.lastRunAt ? formatDateTime(schedule.lastRunAt) : 'Never'}</DataCell>
-                  <DataCell label="Latency" strong>{metrics.totalRuns ? `${metrics.avgLatencyMs.toFixed(0)} ms` : 'N/A'}</DataCell>
-                  <DataCell label="Success" strong>{metrics.totalRuns ? `${metrics.successRate.toFixed(0)}%` : 'N/A'}</DataCell>
                   <div className="flex flex-wrap items-center gap-2 min-[1180px]:justify-end" onClick={(event) => event.stopPropagation()}>
-                    <ActionButton label={schedule.enabled ? 'Turn off' : 'Turn on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
-                    <IconButton label="Alert settings" onClick={() => setAlertSchedule(schedule)}><Bell size={15} /></IconButton>
-                    <IconButton label="Edit" onClick={() => openEdit(schedule)}><Edit3 size={15} /></IconButton>
-                    <IconButton label="Delete" danger onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /></IconButton>
+                    <ActionButton label={schedule.enabled ? 'Turn schedule off' : 'Turn schedule on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
+                    <IconButton label="Edit schedule" onClick={() => openEdit(schedule)}><Edit3 size={15} /></IconButton>
+                    <IconButton label="Delete schedule" danger onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /></IconButton>
                   </div>
                 </div>
               );
