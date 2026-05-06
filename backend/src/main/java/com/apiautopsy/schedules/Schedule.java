@@ -31,6 +31,14 @@ public class Schedule {
     public Integer intervalMinutes;
     public String cronExpression;
     public boolean enabled = true;
+    @Column(name = "slo_uptime_target")
+    public double sloUptimeTarget = 99.0;
+    @Column(name = "slo_latency_p95_ms")
+    public long sloLatencyP95Ms = 1000;
+    @Column(name = "public_status_enabled")
+    public boolean publicStatusEnabled;
+    @Column(name = "public_slug")
+    public String publicSlug;
     public Instant nextRunAt;
     public Instant lastRunAt;
     public Instant createdAt = Instant.now();

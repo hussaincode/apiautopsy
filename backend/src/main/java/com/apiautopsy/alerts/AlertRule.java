@@ -33,6 +33,8 @@ public class AlertRule {
     public List<String> emailRecipients = new ArrayList<>();
 
     public String slackWebhookUrlEncrypted;
+    @Column(name = "webhook_url_encrypted")
+    public String webhookUrlEncrypted;
     public Instant createdAt = Instant.now();
     public Instant updatedAt = Instant.now();
 }

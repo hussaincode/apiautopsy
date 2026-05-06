@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, Execution, ReportSummary, Schedule, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
+import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, Execution, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces() {
   return useQuery({ queryKey: ['workspaces'], queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -121,6 +121,39 @@ export function useScheduleDetail(workspaceId?: string, scheduleId?: string) {
     enabled: !!workspaceId && !!scheduleId,
     refetchInterval: 15000,
     queryFn: async () => (await api.get<ScheduleDetail>(`/workspaces/${workspaceId}/schedules/${scheduleId}/detail`)).data
+  });
+}
+
+export function useScheduleAssertions(workspaceId?: string, scheduleId?: string) {
+  return useQuery({
+    queryKey: ['schedule-assertions', workspaceId, scheduleId],
+    enabled: !!workspaceId && !!scheduleId,
+    queryFn: async () => (await api.get<ScheduleAssertion[]>(`/workspaces/${workspaceId}/schedules/${scheduleId}/assertions`)).data
+  });
+}
+
+export function useCreateAssertion(workspaceId?: string, scheduleId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<ScheduleAssertion>) => (await api.post<ScheduleAssertion>(`/workspaces/${workspaceId}/schedules/${scheduleId}/assertions`, payload)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule-assertions', workspaceId, scheduleId] })
+  });
+}
+
+export function useDeleteAssertion(workspaceId?: string, scheduleId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (assertionId: string) => (await api.delete(`/workspaces/${workspaceId}/schedules/${scheduleId}/assertions/${assertionId}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['schedule-assertions', workspaceId, scheduleId] })
+  });
+}
+
+export function usePublicStatus(slug?: string) {
+  return useQuery({
+    queryKey: ['public-status', slug],
+    enabled: !!slug,
+    refetchInterval: 30000,
+    queryFn: async () => (await api.get<PublicStatus>(`/status/${slug}`)).data
   });
 }
 

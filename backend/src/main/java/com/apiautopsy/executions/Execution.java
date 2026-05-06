@@ -29,6 +29,12 @@ public class Execution {
     @Convert(converter = JsonbConverter.class) @Column(columnDefinition = "jsonb") @ColumnTransformer(write = "?::jsonb")
     public Map<String, Object> responseHeaders = new LinkedHashMap<>();
     public String responseBody;
+    @Column(name = "response_size_bytes")
+    public long responseSizeBytes;
+    @Column(name = "assertion_passed")
+    public boolean assertionPassed = true;
+    @Convert(converter = JsonbConverter.class) @Column(name = "assertion_results", columnDefinition = "jsonb") @ColumnTransformer(write = "?::jsonb")
+    public Map<String, Object> assertionResults = Map.of("results", java.util.List.of());
     public String errorMessage;
     public Instant executedAt = Instant.now();
 }

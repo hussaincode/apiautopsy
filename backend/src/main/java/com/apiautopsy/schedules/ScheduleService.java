@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Comparator;
 import java.util.UUID;
 
 @Service
@@ -85,7 +86,7 @@ public class ScheduleService {
         double avg = row[2] == null ? 0 : ((Number) row[2]).doubleValue();
         long failed = total - success;
         double successRate = total == 0 ? 0 : success * 100.0 / total;
-        ScheduleDtos.ScheduleMetrics metrics = new ScheduleDtos.ScheduleMetrics(total, success, failed, successRate, total == 0 ? 0 : failed * 100.0 / total, avg);
+        ScheduleDtos.ScheduleMetrics metrics = metrics(schedule, executions.findTop500ByScheduleIdOrderByExecutedAtDesc(scheduleId), total, success, failed, successRate, total == 0 ? 0 : failed * 100.0 / total, avg);
         return new ScheduleDtos.ScheduleDetailResponse(toResponse(schedule), metrics, recent.stream().map(this::executionResponse).toList());
     }
 
@@ -137,6 +138,10 @@ public class ScheduleService {
         schedule.intervalMinutes = dto.intervalMinutes();
         schedule.cronExpression = dto.cronExpression();
         schedule.enabled = dto.enabled();
+        schedule.sloUptimeTarget = dto.sloUptimeTarget() == null ? schedule.sloUptimeTarget : dto.sloUptimeTarget();
+        schedule.sloLatencyP95Ms = dto.sloLatencyP95Ms() == null ? schedule.sloLatencyP95Ms : dto.sloLatencyP95Ms();
+        schedule.publicStatusEnabled = dto.publicStatusEnabled();
+        schedule.publicSlug = normalizeSlug(dto.publicSlug());
         validate(schedule);
         schedule.nextRunAt = computeNext(schedule);
     }
@@ -167,6 +172,9 @@ public class ScheduleService {
         if (schedule.scheduleType == ScheduleType.CRON && (schedule.cronExpression == null || !CronExpression.isValidExpression(schedule.cronExpression))) {
             throw new IllegalArgumentException("Invalid cron expression");
         }
+        if (schedule.sloUptimeTarget < 0 || schedule.sloUptimeTarget > 100) throw new IllegalArgumentException("SLO uptime target must be between 0 and 100");
+        if (schedule.sloLatencyP95Ms < 1) throw new IllegalArgumentException("SLO p95 latency target must be greater than 0");
+        if (schedule.publicStatusEnabled && (schedule.publicSlug == null || schedule.publicSlug.isBlank())) throw new IllegalArgumentException("Public status requires a public slug");
     }
 
     private Schedule requireSchedule(UUID workspaceId, UUID scheduleId) {
@@ -184,11 +192,34 @@ public class ScheduleService {
     }
 
     private ScheduleDtos.ScheduleResponse toResponse(Schedule s) {
-        return new ScheduleDtos.ScheduleResponse(s.id, s.apiRequest == null ? null : s.apiRequest.id, s.collection == null ? null : s.collection.id, s.targetType, s.name, s.scheduleType, s.intervalMinutes, s.cronExpression, s.enabled, s.nextRunAt, s.lastRunAt);
+        return new ScheduleDtos.ScheduleResponse(s.id, s.apiRequest == null ? null : s.apiRequest.id, s.collection == null ? null : s.collection.id, s.targetType, s.name, s.scheduleType, s.intervalMinutes, s.cronExpression, s.enabled, s.nextRunAt, s.lastRunAt, s.sloUptimeTarget, s.sloLatencyP95Ms, s.publicStatusEnabled, s.publicSlug);
     }
 
     private ExecutionDtos.ExecutionResponse executionResponse(Execution e) {
-        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt);
+        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt, e.responseSizeBytes, e.assertionPassed, e.assertionResults);
+    }
+
+    private ScheduleDtos.ScheduleMetrics metrics(Schedule schedule, List<Execution> window, long total, long success, long failed, double successRate, double failureRate, double avg) {
+        List<Long> latencies = window.stream().map(execution -> execution.responseTimeMs).sorted(Comparator.naturalOrder()).toList();
+        double p50 = percentile(latencies, 50);
+        double p90 = percentile(latencies, 90);
+        double p95 = percentile(latencies, 95);
+        double p99 = percentile(latencies, 99);
+        double errorBudget = Math.max(0, 100.0 - schedule.sloUptimeTarget);
+        double usedError = Math.max(0, 100.0 - successRate);
+        double remaining = errorBudget == 0 ? (usedError == 0 ? 100 : 0) : Math.max(0, (errorBudget - usedError) * 100.0 / errorBudget);
+        return new ScheduleDtos.ScheduleMetrics(total, success, failed, successRate, failureRate, avg, p50, p90, p95, p99, remaining, total == 0 || successRate >= schedule.sloUptimeTarget, total == 0 || p95 <= schedule.sloLatencyP95Ms);
+    }
+
+    private double percentile(List<Long> values, int percentile) {
+        if (values.isEmpty()) return 0;
+        int index = (int) Math.ceil(percentile / 100.0 * values.size()) - 1;
+        return values.get(Math.max(0, Math.min(index, values.size() - 1)));
+    }
+
+    private String normalizeSlug(String slug) {
+        if (slug == null || slug.isBlank()) return null;
+        return slug.trim().toLowerCase();
     }
 
     private Object[] flattenAggregate(Object[] row) {

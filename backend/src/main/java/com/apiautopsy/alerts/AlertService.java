@@ -4,13 +4,17 @@ import com.apiautopsy.auth.EmailService;
 import com.apiautopsy.common.NotFoundException;
 import com.apiautopsy.executions.Execution;
 import com.apiautopsy.executions.ExecutionRepository;
+import com.apiautopsy.executions.SsrfGuard;
 import com.apiautopsy.schedules.Schedule;
 import com.apiautopsy.schedules.ScheduleRepository;
+import com.apiautopsy.security.CryptoService;
 import com.apiautopsy.workspaces.WorkspaceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -27,14 +31,19 @@ public class AlertService {
     private final ExecutionRepository executions;
     private final WorkspaceService workspaceService;
     private final EmailService emailService;
+    private final CryptoService cryptoService;
+    private final SsrfGuard ssrfGuard;
+    private final RestClient restClient = RestClient.create();
 
-    public AlertService(AlertRuleRepository rules, AlertIncidentRepository incidents, ScheduleRepository schedules, ExecutionRepository executions, WorkspaceService workspaceService, EmailService emailService) {
+    public AlertService(AlertRuleRepository rules, AlertIncidentRepository incidents, ScheduleRepository schedules, ExecutionRepository executions, WorkspaceService workspaceService, EmailService emailService, CryptoService cryptoService, SsrfGuard ssrfGuard) {
         this.rules = rules;
         this.incidents = incidents;
         this.schedules = schedules;
         this.executions = executions;
         this.workspaceService = workspaceService;
         this.emailService = emailService;
+        this.cryptoService = cryptoService;
+        this.ssrfGuard = ssrfGuard;
     }
 
     public List<AlertDtos.AlertRuleResponse> listRules(UUID userId, UUID workspaceId) {
@@ -57,6 +66,7 @@ public class AlertService {
         rule.latencyThresholdMs = request.latencyThresholdMs();
         rule.consecutiveFailuresThreshold = Math.max(1, request.consecutiveFailuresThreshold());
         rule.emailRecipients = cleanRecipients(request.emailRecipients());
+        if (request.webhookUrl() != null) rule.webhookUrlEncrypted = encryptWebhook(request.webhookUrl());
         rule.updatedAt = Instant.now();
         return toRuleResponse(rules.save(rule));
     }
@@ -100,6 +110,9 @@ public class AlertService {
         if (rule.alertOnFailure && !execution.success) {
             reasons.add("Request failed with status " + (execution.statusCode == null ? "N/A" : execution.statusCode));
         }
+        if (!execution.assertionPassed) {
+            reasons.add("One or more response assertions failed");
+        }
         if (rule.latencyThresholdMs != null && execution.responseTimeMs > rule.latencyThresholdMs) {
             reasons.add("Latency " + execution.responseTimeMs + " ms exceeded " + rule.latencyThresholdMs + " ms");
         }
@@ -138,7 +151,10 @@ public class AlertService {
         incident.lastErrorMessage = execution.errorMessage;
         if (!isNew) incident.triggerCount++;
         incidents.save(incident);
-        if (isNew) emailService.sendAlertTriggered(recipients(rule), rule.schedule.name, reason);
+        if (isNew) {
+            emailService.sendAlertTriggered(recipients(rule), rule.schedule.name, reason);
+            sendWebhook(rule, "triggered", reason, execution);
+        }
     }
 
     private void resolveOpenIncident(AlertRule rule, Execution execution) {
@@ -149,7 +165,37 @@ public class AlertService {
             incident.lastTriggeredAt = Instant.now();
             incidents.save(incident);
             emailService.sendAlertResolved(recipients(rule), rule.schedule.name);
+            sendWebhook(rule, "resolved", "Monitor recovered", execution);
         });
+    }
+
+    private void sendWebhook(AlertRule rule, String event, String reason, Execution execution) {
+        if (rule.webhookUrlEncrypted == null || rule.webhookUrlEncrypted.isBlank()) return;
+        try {
+            String webhookUrl = cryptoService.decrypt(rule.webhookUrlEncrypted);
+            restClient.post()
+                .uri(ssrfGuard.validateExternalHttpUrl(webhookUrl))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(java.util.Map.of(
+                    "event", event,
+                    "scheduleId", rule.schedule.id.toString(),
+                    "scheduleName", rule.schedule.name,
+                    "reason", reason,
+                    "statusCode", execution.statusCode == null ? "N/A" : execution.statusCode,
+                    "latencyMs", execution.responseTimeMs,
+                    "executedAt", execution.executedAt.toString()
+                ))
+                .retrieve()
+                .toBodilessEntity();
+        } catch (RuntimeException ex) {
+            log.warn("Alert webhook delivery failed for schedule {}", rule.schedule.id, ex);
+        }
+    }
+
+    private String encryptWebhook(String webhookUrl) {
+        if (webhookUrl == null || webhookUrl.isBlank()) return null;
+        ssrfGuard.validateExternalHttpUrl(webhookUrl);
+        return cryptoService.encrypt(webhookUrl.trim());
     }
 
     private List<String> recipients(AlertRule rule) {
@@ -175,7 +221,7 @@ public class AlertService {
     }
 
     private AlertDtos.AlertRuleResponse toRuleResponse(AlertRule rule) {
-        return new AlertDtos.AlertRuleResponse(rule.id, rule.schedule.id, rule.enabled, rule.alertOnFailure, rule.latencyThresholdMs, rule.consecutiveFailuresThreshold, rule.emailRecipients, rule.createdAt, rule.updatedAt);
+        return new AlertDtos.AlertRuleResponse(rule.id, rule.schedule.id, rule.enabled, rule.alertOnFailure, rule.latencyThresholdMs, rule.consecutiveFailuresThreshold, rule.emailRecipients, null, rule.createdAt, rule.updatedAt);
     }
 
     private AlertDtos.AlertIncidentResponse toIncidentResponse(AlertIncident incident) {

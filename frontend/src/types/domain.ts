@@ -29,6 +29,9 @@ export interface Execution {
   responseBody?: string;
   errorMessage?: string;
   executedAt: string;
+  responseSizeBytes: number;
+  assertionPassed: boolean;
+  assertionResults?: { results?: AssertionResult[] };
 }
 export interface Schedule {
   id: string;
@@ -42,10 +45,18 @@ export interface Schedule {
   enabled: boolean;
   nextRunAt: string;
   lastRunAt?: string;
+  sloUptimeTarget: number;
+  sloLatencyP95Ms: number;
+  publicStatusEnabled: boolean;
+  publicSlug?: string;
 }
 export interface ReportSummary { total: number; success: number; successRate: number; errorRate: number; avgLatencyMs: number; }
-export interface ScheduleMetrics { totalRuns: number; successfulRuns: number; failedRuns: number; successRate: number; failureRate: number; avgLatencyMs: number; }
+export interface ScheduleMetrics { totalRuns: number; successfulRuns: number; failedRuns: number; successRate: number; failureRate: number; avgLatencyMs: number; p50LatencyMs: number; p90LatencyMs: number; p95LatencyMs: number; p99LatencyMs: number; errorBudgetRemainingPercent: number; uptimeSloMet: boolean; latencySloMet: boolean; }
 export interface ScheduleDetail { schedule: Schedule; metrics: ScheduleMetrics; executions: Execution[]; }
+export type AssertionType = 'STATUS_CODE' | 'JSON_PATH_EXISTS' | 'JSON_PATH_EQUALS' | 'BODY_CONTAINS' | 'MAX_LATENCY_MS' | 'MAX_RESPONSE_SIZE_BYTES';
+export interface ScheduleAssertion { id: string; scheduleId: string; type: AssertionType; name: string; enabled: boolean; expectedStatusCode?: number; jsonPath?: string; expectedValue?: string; containsText?: string; maxLatencyMs?: number; maxResponseSizeBytes?: number; createdAt: string; updatedAt: string; }
+export interface AssertionResult { assertionId: string; name: string; type: AssertionType; passed: boolean; message: string; }
+export interface PublicStatus { name: string; method: string; url?: string; status: 'OPERATIONAL' | 'DEGRADED' | 'DOWN' | 'UNKNOWN'; successRate: number; avgLatencyMs: number; p95LatencyMs: number; uptimeTarget: number; totalRuns: number; lastRunAt?: string; recentExecutions: Array<{ executedAt: string; success: boolean; statusCode?: number; responseTimeMs: number }>; }
 export interface AlertRule {
   id: string;
   scheduleId: string;
@@ -54,6 +65,7 @@ export interface AlertRule {
   latencyThresholdMs?: number;
   consecutiveFailuresThreshold: number;
   emailRecipients: string[];
+  webhookUrl?: string;
   createdAt: string;
   updatedAt: string;
 }

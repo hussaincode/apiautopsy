@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { AuthScreen } from './components/AuthScreen';
 import { Dashboard } from './features/Dashboard';
+import { PublicStatusPage } from './features/PublicStatusPage';
 import { useAuth } from './store/auth';
 
 export default function App() {
@@ -15,6 +16,9 @@ export default function App() {
       window.history.replaceState({}, '', '/requests');
     }
   }, [setAuth]);
+
+  const statusMatch = window.location.pathname.match(/^\/status\/([a-z0-9-]+)$/);
+  if (statusMatch) return <PublicStatusPage slug={statusMatch[1]} />;
 
   return token ? <Dashboard /> : <AuthScreen />;
 }

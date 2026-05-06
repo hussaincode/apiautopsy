@@ -2,6 +2,7 @@ package com.apiautopsy.alerts;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
+import org.hibernate.validator.constraints.URL;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,7 +14,8 @@ public class AlertDtos {
         boolean alertOnFailure,
         @Min(1) Long latencyThresholdMs,
         @Min(1) int consecutiveFailuresThreshold,
-        List<@Email String> emailRecipients
+        List<@Email String> emailRecipients,
+        @URL(protocol = "https") String webhookUrl
     ) {}
 
     public record AlertRuleResponse(
@@ -24,6 +26,7 @@ public class AlertDtos {
         Long latencyThresholdMs,
         int consecutiveFailuresThreshold,
         List<String> emailRecipients,
+        String webhookUrl,
         Instant createdAt,
         Instant updatedAt
     ) {}

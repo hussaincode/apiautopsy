@@ -1,8 +1,8 @@
 import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Edit3, Plus, Power, ShieldCheck, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useAlertIncidents, useAlertRules, useResolveAlertIncident, useSaveAlertRule, useScheduleDetail } from '../api/hooks';
+import { useAlertIncidents, useAlertRules, useCreateAssertion, useDeleteAssertion, useResolveAlertIncident, useSaveAlertRule, useScheduleAssertions, useScheduleDetail } from '../api/hooks';
 import { Button, EmptyState, FieldLabel, Input, Select } from '../components/ui';
-import type { AlertIncident, AlertRule, ApiRequest, Execution, Schedule, ScheduleType } from '../types/domain';
+import type { AlertIncident, AlertRule, ApiRequest, AssertionType, Execution, Schedule, ScheduleAssertion, ScheduleType } from '../types/domain';
 import type { Collection } from '../types/domain';
 
 type SchedulePayload = {
@@ -14,6 +14,10 @@ type SchedulePayload = {
   intervalMinutes?: number;
   cronExpression?: string;
   enabled: boolean;
+  sloUptimeTarget?: number;
+  sloLatencyP95Ms?: number;
+  publicStatusEnabled?: boolean;
+  publicSlug?: string;
 };
 
 export function SchedulerPage({
@@ -48,6 +52,9 @@ export function SchedulerPage({
   const selectedRequest = selectedSchedule?.apiRequestId ? requestById.get(selectedSchedule.apiRequestId) : undefined;
   const selectedCollection = selectedSchedule?.collectionId ? collectionById.get(selectedSchedule.collectionId) : undefined;
   const detail = useScheduleDetail(workspaceId, selectedSchedule?.id);
+  const assertions = useScheduleAssertions(workspaceId, selectedSchedule?.id);
+  const createAssertion = useCreateAssertion(workspaceId, selectedSchedule?.id);
+  const deleteAssertion = useDeleteAssertion(workspaceId, selectedSchedule?.id);
   const alertRules = useAlertRules(workspaceId);
   const alertIncidents = useAlertIncidents(workspaceId);
   const saveAlertRule = useSaveAlertRule(workspaceId);
@@ -89,6 +96,8 @@ export function SchedulerPage({
         latencyThresholdMs: rule?.latencyThresholdMs ?? 1500,
         consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold ?? 1,
         emailRecipients: rule?.emailRecipients ?? []
+        ,
+        webhookUrl: rule?.webhookUrl
       }
     });
   }
@@ -192,6 +201,9 @@ export function SchedulerPage({
           collectionName={selectedCollection?.name}
           incidents={(alertIncidents.data ?? []).filter((incident) => selectedSchedule && incident.scheduleId === selectedSchedule.id)}
           onResolveIncident={(incidentId) => resolveAlertIncident.mutate(incidentId)}
+          assertions={assertions.data ?? []}
+          onCreateAssertion={(payload) => createAssertion.mutateAsync(payload)}
+          onDeleteAssertion={(assertionId) => deleteAssertion.mutateAsync(assertionId)}
           schedule={selectedSchedule}
         />
       </div>
@@ -226,7 +238,7 @@ export function SchedulerPage({
   );
 }
 
-function ScheduleDetailPanel({ collectionName, executions, incidents, isLoading, metrics, onResolveIncident, request, schedule }: { collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
+function ScheduleDetailPanel({ assertions, collectionName, executions, incidents, isLoading, metrics, onCreateAssertion, onDeleteAssertion, onResolveIncident, request, schedule }: { assertions: ScheduleAssertion[]; collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onCreateAssertion: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDeleteAssertion: (assertionId: string) => Promise<unknown>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
   if (!schedule) {
     return <section className="rounded-2xl border border-slate-800 bg-[#111827] p-6 shadow-xl shadow-black/20"><EmptyState title="Select a schedule" body="Choose a schedule to inspect uptime, latency, and execution history." /></section>;
   }
@@ -242,8 +254,22 @@ function ScheduleDetailPanel({ collectionName, executions, incidents, isLoading,
       <div className="grid grid-cols-2 gap-3 p-5">
         <MetricCard icon={<Activity size={16} />} label="Total runs" value={metrics.totalRuns} />
         <MetricCard icon={<CheckCircle2 size={16} />} label="Success" value={`${metrics.successRate.toFixed(1)}%`} />
-        <MetricCard icon={<Clock3 size={16} />} label="Avg latency" value={`${metrics.avgLatencyMs.toFixed(0)} ms`} />
-        <MetricCard icon={<X size={16} />} label="Failure" value={`${metrics.failureRate.toFixed(1)}%`} tone="bad" />
+        <MetricCard icon={<Clock3 size={16} />} label="P95 latency" value={`${(metrics.p95LatencyMs ?? metrics.avgLatencyMs).toFixed(0)} ms`} tone={metrics.latencySloMet === false ? 'bad' : 'normal'} />
+        <MetricCard icon={<X size={16} />} label="Error budget" value={`${(metrics.errorBudgetRemainingPercent ?? 100).toFixed(0)}%`} tone={(metrics.errorBudgetRemainingPercent ?? 100) <= 0 ? 'bad' : 'normal'} />
+      </div>
+
+      <div className="px-5 pb-5">
+        <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-300 sm:grid-cols-2">
+          <div><span className="text-slate-500">Uptime SLO</span><div className="mt-1 font-semibold text-slate-100">{schedule.sloUptimeTarget ?? 99}% target</div></div>
+          <div><span className="text-slate-500">Latency SLO</span><div className="mt-1 font-semibold text-slate-100">p95 under {schedule.sloLatencyP95Ms ?? 1000} ms</div></div>
+          {schedule.publicStatusEnabled && schedule.publicSlug && (
+            <a className="sm:col-span-2 truncate text-indigo-300 hover:text-indigo-200" href={`/status/${schedule.publicSlug}`} target="_blank" rel="noreferrer">Public status: /status/{schedule.publicSlug}</a>
+          )}
+        </div>
+      </div>
+
+      <div className="px-5 pb-5">
+        <AssertionsPanel assertions={assertions} onCreate={onCreateAssertion} onDelete={onDeleteAssertion} />
       </div>
 
       <div className="px-5 pb-5">
@@ -289,6 +315,7 @@ function ScheduleDetailPanel({ collectionName, executions, incidents, isLoading,
               <div className="min-w-0">
                 <div className="break-words leading-5 text-slate-200">{formatDateTime(execution.executedAt)}</div>
                 {execution.errorMessage && <div className="mt-1 truncate text-xs text-red-300">{execution.errorMessage}</div>}
+                {execution.assertionPassed === false && <div className="mt-1 text-xs text-amber-300">Assertion failed</div>}
               </div>
               <div className={`min-w-0 truncate font-semibold ${execution.success ? 'text-teal-300' : 'text-red-300'}`}>{execution.success ? 'Success' : 'Failure'}</div>
               <div className="whitespace-nowrap text-slate-300">{execution.responseTimeMs} ms</div>
@@ -308,7 +335,8 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
     alertOnFailure: rule?.alertOnFailure ?? true,
     latencyThresholdMs: rule?.latencyThresholdMs?.toString() ?? '1500',
     consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold?.toString() ?? '1',
-    emailRecipients: rule?.emailRecipients?.join(', ') ?? ''
+    emailRecipients: rule?.emailRecipients?.join(', ') ?? '',
+    webhookUrl: rule?.webhookUrl ?? ''
   });
 
   const recipients = draft.emailRecipients.split(',').map((email) => email.trim()).filter(Boolean);
@@ -365,6 +393,12 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
             />
             <p className="mt-2 text-xs leading-5 text-slate-500">The schedule creator is notified automatically. Add any teammate, client, or support inbox that should also receive alerts.</p>
           </label>
+
+          <label className="block">
+            <FieldLabel>Webhook URL</FieldLabel>
+            <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" placeholder="https://hooks.slack.com/services/..." value={draft.webhookUrl} onChange={(event) => setDraft({ ...draft, webhookUrl: event.target.value })} />
+            <p className="mt-2 text-xs leading-5 text-slate-500">Optional HTTPS endpoint for triggered and recovered alerts.</p>
+          </label>
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
@@ -377,7 +411,8 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
               alertOnFailure: draft.alertOnFailure,
               latencyThresholdMs: latency,
               consecutiveFailuresThreshold: consecutive,
-              emailRecipients: recipients
+              emailRecipients: recipients,
+              webhookUrl: draft.webhookUrl.trim() || undefined
             })}
           >
             <CheckCircle2 size={16} />Save alerts
@@ -397,7 +432,11 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
     scheduleType: schedule?.scheduleType ?? 'INTERVAL' as ScheduleType,
     intervalMinutes: schedule?.intervalMinutes ?? 5,
     cronExpression: schedule?.cronExpression ?? '0 */5 * * * *',
-    enabled: schedule?.enabled ?? true
+    enabled: schedule?.enabled ?? true,
+    sloUptimeTarget: schedule?.sloUptimeTarget ?? 99,
+    sloLatencyP95Ms: schedule?.sloLatencyP95Ms ?? 1000,
+    publicStatusEnabled: schedule?.publicStatusEnabled ?? false,
+    publicSlug: schedule?.publicSlug ?? ''
   });
 
   const canSave = Boolean((draft.targetType === 'WORKFLOW' ? draft.collectionId : draft.apiRequestId) && draft.name.trim() && (draft.scheduleType === 'INTERVAL' ? draft.intervalMinutes >= 1 : draft.cronExpression.trim()));
@@ -465,6 +504,26 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
             <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
             Enable schedule
           </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <FieldLabel>Uptime SLO target (%)</FieldLabel>
+              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" inputMode="decimal" value={draft.sloUptimeTarget} onChange={(event) => setDraft({ ...draft, sloUptimeTarget: Number(event.target.value) })} />
+            </label>
+            <label className="block">
+              <FieldLabel>P95 latency target (ms)</FieldLabel>
+              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" inputMode="numeric" value={draft.sloLatencyP95Ms} onChange={(event) => setDraft({ ...draft, sloLatencyP95Ms: Number(event.target.value) })} />
+            </label>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={draft.publicStatusEnabled} onChange={(event) => setDraft({ ...draft, publicStatusEnabled: event.target.checked })} />
+            Publish read-only status page
+          </label>
+          {draft.publicStatusEnabled && (
+            <label className="block">
+              <FieldLabel>Status page slug</FieldLabel>
+              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" placeholder="production-health" value={draft.publicSlug} onChange={(event) => setDraft({ ...draft, publicSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} />
+            </label>
+          )}
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -476,10 +535,91 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
             scheduleType: draft.scheduleType,
             intervalMinutes: draft.scheduleType === 'INTERVAL' ? draft.intervalMinutes : undefined,
             cronExpression: draft.scheduleType === 'CRON' ? draft.cronExpression.trim() : undefined,
-            enabled: draft.enabled
+            enabled: draft.enabled,
+            sloUptimeTarget: draft.sloUptimeTarget,
+            sloLatencyP95Ms: draft.sloLatencyP95Ms,
+            publicStatusEnabled: draft.publicStatusEnabled,
+            publicSlug: draft.publicStatusEnabled ? draft.publicSlug.trim() : undefined
           })}>
             <CheckCircle2 size={16} />{schedule ? 'Save changes' : 'Create'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: ScheduleAssertion[]; onCreate: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDelete: (assertionId: string) => Promise<unknown> }) {
+  const [draft, setDraft] = useState({
+    type: 'STATUS_CODE' as AssertionType,
+    name: 'Status is 200',
+    expectedStatusCode: '200',
+    jsonPath: '$.status',
+    expectedValue: '',
+    containsText: '',
+    maxLatencyMs: '1000',
+    maxResponseSizeBytes: '50000'
+  });
+  const [busy, setBusy] = useState(false);
+
+  async function addAssertion() {
+    setBusy(true);
+    try {
+      await onCreate({
+        type: draft.type,
+        name: draft.name.trim(),
+        enabled: true,
+        expectedStatusCode: draft.type === 'STATUS_CODE' ? Number(draft.expectedStatusCode) : undefined,
+        jsonPath: draft.type === 'JSON_PATH_EXISTS' || draft.type === 'JSON_PATH_EQUALS' ? draft.jsonPath : undefined,
+        expectedValue: draft.type === 'JSON_PATH_EQUALS' ? draft.expectedValue : undefined,
+        containsText: draft.type === 'BODY_CONTAINS' ? draft.containsText : undefined,
+        maxLatencyMs: draft.type === 'MAX_LATENCY_MS' ? Number(draft.maxLatencyMs) : undefined,
+        maxResponseSizeBytes: draft.type === 'MAX_RESPONSE_SIZE_BYTES' ? Number(draft.maxResponseSizeBytes) : undefined
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-100">Response assertions</h3>
+        <span className="text-xs text-slate-500">{assertions.length} checks</span>
+      </div>
+      <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+        <div className="grid gap-2 md:grid-cols-[1.2fr_1fr_1fr_auto]">
+          <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+          <Select className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as AssertionType })}>
+            <option value="STATUS_CODE">Status code</option>
+            <option value="JSON_PATH_EXISTS">JSON path exists</option>
+            <option value="JSON_PATH_EQUALS">JSON path equals</option>
+            <option value="BODY_CONTAINS">Body contains</option>
+            <option value="MAX_LATENCY_MS">Max latency</option>
+            <option value="MAX_RESPONSE_SIZE_BYTES">Max response size</option>
+          </Select>
+          {draft.type === 'STATUS_CODE' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.expectedStatusCode} onChange={(event) => setDraft({ ...draft, expectedStatusCode: event.target.value })} />}
+          {draft.type === 'JSON_PATH_EXISTS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.jsonPath} onChange={(event) => setDraft({ ...draft, jsonPath: event.target.value })} />}
+          {draft.type === 'JSON_PATH_EQUALS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="$.token = value" value={`${draft.jsonPath} = ${draft.expectedValue}`} onChange={(event) => {
+            const [path, ...value] = event.target.value.split('=');
+            setDraft({ ...draft, jsonPath: path.trim(), expectedValue: value.join('=').trim() });
+          }} />}
+          {draft.type === 'BODY_CONTAINS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.containsText} onChange={(event) => setDraft({ ...draft, containsText: event.target.value })} />}
+          {draft.type === 'MAX_LATENCY_MS' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.maxLatencyMs} onChange={(event) => setDraft({ ...draft, maxLatencyMs: event.target.value })} />}
+          {draft.type === 'MAX_RESPONSE_SIZE_BYTES' && <Input className="rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.maxResponseSizeBytes} onChange={(event) => setDraft({ ...draft, maxResponseSizeBytes: event.target.value })} />}
+          <button className="rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white disabled:opacity-50" disabled={busy || !draft.name.trim()} onClick={addAssertion}>Add</button>
+        </div>
+        <div className="mt-3 divide-y divide-slate-800">
+          {assertions.map((assertion) => (
+            <div key={assertion.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-slate-200">{assertion.name}</div>
+                <div className="text-xs text-slate-500">{assertion.type.replace(/_/g, ' ')}</div>
+              </div>
+              <button className="rounded-lg p-2 text-red-300 hover:bg-red-950/40" aria-label={`Delete assertion ${assertion.name}`} onClick={() => onDelete(assertion.id)}><Trash2 size={15} /></button>
+            </div>
+          ))}
+          {assertions.length === 0 && <div className="py-3 text-center text-sm text-slate-500">Add checks for status, JSON fields, body text, latency, or response size.</div>}
         </div>
       </div>
     </div>
@@ -550,14 +690,30 @@ function calculateMetrics(executions: Execution[]) {
   const successfulRuns = executions.filter((execution) => execution.success).length;
   const failedRuns = totalRuns - successfulRuns;
   const avgLatencyMs = totalRuns === 0 ? 0 : executions.reduce((sum, execution) => sum + execution.responseTimeMs, 0) / totalRuns;
+  const latencies = executions.map((execution) => execution.responseTimeMs).sort((a, b) => a - b);
+  const successRate = totalRuns === 0 ? 0 : successfulRuns * 100 / totalRuns;
+  const failureRate = totalRuns === 0 ? 0 : failedRuns * 100 / totalRuns;
   return {
     totalRuns,
     successfulRuns,
     failedRuns,
-    successRate: totalRuns === 0 ? 0 : successfulRuns * 100 / totalRuns,
-    failureRate: totalRuns === 0 ? 0 : failedRuns * 100 / totalRuns,
-    avgLatencyMs
+    successRate,
+    failureRate,
+    avgLatencyMs,
+    p50LatencyMs: percentile(latencies, 50),
+    p90LatencyMs: percentile(latencies, 90),
+    p95LatencyMs: percentile(latencies, 95),
+    p99LatencyMs: percentile(latencies, 99),
+    errorBudgetRemainingPercent: totalRuns === 0 ? 100 : Math.max(0, 100 - failureRate),
+    uptimeSloMet: true,
+    latencySloMet: true
   };
+}
+
+function percentile(values: number[], percentileValue: number) {
+  if (!values.length) return 0;
+  const index = Math.ceil((percentileValue / 100) * values.length) - 1;
+  return values[Math.max(0, Math.min(index, values.length - 1))];
 }
 
 function formatSchedule(schedule: Schedule) {

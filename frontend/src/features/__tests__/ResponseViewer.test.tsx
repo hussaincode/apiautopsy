@@ -20,7 +20,9 @@ describe('ResponseViewer', () => {
           responseTimeMs: 123,
           responseHeaders: { 'content-type': 'application/json' },
           responseBody: '{"ok":true}',
-          executedAt: new Date().toISOString()
+          executedAt: new Date().toISOString(),
+          responseSizeBytes: 11,
+          assertionPassed: true
         }}
       />
     );

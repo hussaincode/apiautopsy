@@ -6,6 +6,7 @@ import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Converter
@@ -26,6 +27,7 @@ public class JsonbConverter implements AttributeConverter<Map<String, Object>, S
     public Map<String, Object> convertToEntityAttribute(String dbData) {
         try {
             if (dbData == null || dbData.isBlank()) return new LinkedHashMap<>();
+            if (dbData.trim().startsWith("[")) return new LinkedHashMap<>(Map.of("results", MAPPER.readValue(dbData, List.class)));
             return MAPPER.readValue(dbData, MAP);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid JSON from database", e);

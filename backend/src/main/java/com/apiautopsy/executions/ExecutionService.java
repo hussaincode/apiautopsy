@@ -1,6 +1,8 @@
 package com.apiautopsy.executions;
 
 import com.apiautopsy.common.NotFoundException;
+import com.apiautopsy.monitoring.AssertionService;
+import com.apiautopsy.monitoring.MonitoringDtos;
 import com.apiautopsy.requests.ApiRequest;
 import com.apiautopsy.requests.ApiRequestRepository;
 import com.apiautopsy.requests.AuthType;
@@ -39,14 +41,16 @@ public class ExecutionService {
     private final WorkspaceService workspaceService;
     private final CryptoService crypto;
     private final SsrfGuard ssrfGuard;
+    private final AssertionService assertionService;
     private final RestClient restClient = RestClient.builder().requestFactory(new org.springframework.http.client.SimpleClientHttpRequestFactory()).build();
 
-    public ExecutionService(ApiRequestRepository requests, ExecutionRepository executions, WorkspaceService workspaceService, CryptoService crypto, SsrfGuard ssrfGuard) {
+    public ExecutionService(ApiRequestRepository requests, ExecutionRepository executions, WorkspaceService workspaceService, CryptoService crypto, SsrfGuard ssrfGuard, AssertionService assertionService) {
         this.requests = requests;
         this.executions = executions;
         this.workspaceService = workspaceService;
         this.crypto = crypto;
         this.ssrfGuard = ssrfGuard;
+        this.assertionService = assertionService;
     }
 
     @Transactional
@@ -101,19 +105,33 @@ public class ExecutionService {
             execution.success = response.getStatusCode().is2xxSuccessful() || response.getStatusCode().is3xxRedirection();
             execution.responseHeaders = flattenHeaders(response.getHeaders());
             execution.responseBody = truncate(response.getBody(), 250_000);
+            execution.responseSizeBytes = byteSize(response.getBody());
         } catch (RestClientResponseException e) {
             execution.statusCode = e.getStatusCode().value();
             execution.success = false;
             execution.responseHeaders = flattenHeaders(e.getResponseHeaders() == null ? new HttpHeaders() : e.getResponseHeaders());
             execution.responseBody = truncate(e.getResponseBodyAsString(), 250_000);
+            execution.responseSizeBytes = byteSize(e.getResponseBodyAsString());
             execution.errorMessage = truncate(e.getMessage(), 4_000);
         } catch (Exception e) {
             execution.success = false;
             execution.errorMessage = truncate(e.getMessage(), 4_000);
         }
         execution.responseTimeMs = Duration.between(started, Instant.now()).toMillis();
+        applyAssertions(schedule, execution);
         executions.save(execution);
         return execution;
+    }
+
+    private void applyAssertions(Schedule schedule, Execution execution) {
+        List<MonitoringDtos.AssertionResult> results = assertionService.evaluate(schedule, execution);
+        execution.assertionResults = Map.of("results", List.copyOf(results));
+        execution.assertionPassed = results.stream().allMatch(MonitoringDtos.AssertionResult::passed);
+        execution.success = execution.success && execution.assertionPassed;
+        if (!execution.assertionPassed) {
+            String failure = results.stream().filter(result -> !result.passed()).findFirst().map(MonitoringDtos.AssertionResult::message).orElse("One or more assertions failed");
+            execution.errorMessage = truncate(execution.errorMessage == null ? failure : execution.errorMessage + "; " + failure, 4_000);
+        }
     }
 
     private ApiRequest renderRequest(ApiRequest source, Map<String, Object> variables) {
@@ -213,8 +231,12 @@ public class ExecutionService {
         return value.substring(0, max);
     }
 
+    private long byteSize(String value) {
+        return value == null ? 0 : value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+    }
+
     private ExecutionDtos.ExecutionResponse toResponse(Execution e) {
-        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt);
+        return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt, e.responseSizeBytes, e.assertionPassed, e.assertionResults);
     }
 
     private Object[] flattenAggregate(Object[] row) {
