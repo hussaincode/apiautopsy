@@ -37,7 +37,7 @@ jobs:
 
       - name: Test backend
         working-directory: backend
-        run: mvn -B test
+        run: mvn -B verify
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
