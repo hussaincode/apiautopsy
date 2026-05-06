@@ -12,7 +12,7 @@ export default function App() {
     const oauthToken = url.searchParams.get('token');
     if (oauthToken) {
       setAuth(oauthToken);
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', '/requests');
     }
   }, [setAuth]);
 

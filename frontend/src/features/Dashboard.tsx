@@ -33,10 +33,17 @@ import { Sidebar } from './Sidebar';
 import type { AppPage, BuilderTab, RequestDraft } from './dashboardTypes';
 import { emptyRequestDraft } from './dashboardTypes';
 
+const pageRoutes: Record<AppPage, string> = {
+  requests: '/requests',
+  scheduler: '/scheduler',
+  flows: '/flows',
+  settings: '/settings'
+};
+
 export function Dashboard() {
   const logout = useAuth((state) => state.logout);
   const email = useAuth((state) => state.email);
-  const [activePage, setActivePage] = useState<AppPage>('requests');
+  const [activePage, setActivePageState] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [activeWorkspace, setActiveWorkspace] = useState<string>();
   const [builderTab, setBuilderTab] = useState<BuilderTab>('params');
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
@@ -82,14 +89,29 @@ export function Dashboard() {
   }), [requestList, search, selectedCollectionId]);
 
   useEffect(() => {
+    const onPopState = () => setActivePageState(pageFromPath(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  function navigate(page: AppPage, replace = false) {
+    setActivePageState(page);
+    const nextPath = pageRoutes[page];
+    if (window.location.pathname === nextPath) return;
+    const state = { page };
+    if (replace) window.history.replaceState(state, '', nextPath);
+    else window.history.pushState(state, '', nextPath);
+  }
+
+  useEffect(() => {
     if (!selectedRequest) return;
     setDraft(fromRequest(selectedRequest));
   }, [selectedRequest?.id]);
 
   useEffect(() => {
-    if (selectedRequestId || visibleRequests.length === 0) return;
+    if (activePage !== 'requests' || selectedRequestId || visibleRequests.length === 0) return;
     openRequest(visibleRequests[0].id);
-  }, [visibleRequests.length, selectedRequestId]);
+  }, [activePage, visibleRequests.length, selectedRequestId]);
 
   function parseJson(value: string) {
     try {
@@ -178,7 +200,7 @@ export function Dashboard() {
   async function newRequest() {
     const collectionId = selectedCollectionId === 'all' ? '' : selectedCollectionId;
     setLiveExecution(undefined);
-    setActivePage('requests');
+    navigate('requests');
     const payload = {
       ...toPayloadFromDraft(emptyRequestDraft(collectionId), parseJson),
       name: `New Request ${requestList.length + 1}`
@@ -194,7 +216,7 @@ export function Dashboard() {
     setSelectedRequestId(id);
     setLiveExecution(undefined);
     setOpenTabIds((current) => current.includes(id) ? current : [...current, id]);
-    setActivePage('requests');
+    navigate('requests');
     setMobilePane('request');
   }
 
@@ -227,7 +249,7 @@ export function Dashboard() {
 
   return (
     <main className="h-screen overflow-hidden bg-[#0c0c0c] text-slate-100">
-      <TopBar email={email} profileOpen={profileOpen} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => setActivePage('settings')} />
+      <TopBar email={email} profileOpen={profileOpen} onHome={() => navigate('requests')} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => navigate('settings')} />
       <div className="flex h-[calc(100vh-48px)] min-h-0">
         <div className="fixed bottom-4 left-1/2 z-40 grid w-[calc(100%-32px)] max-w-sm -translate-x-1/2 grid-cols-2 rounded-2xl border border-slate-800 bg-[#111827]/95 p-1 shadow-2xl shadow-black/40 backdrop-blur md:hidden">
           <button className={`rounded-xl px-3 py-2 text-sm font-semibold ${mobilePane === 'collections' ? 'bg-indigo-500 text-white' : 'text-slate-300'}`} onClick={() => setMobilePane('collections')}>Collections</button>
@@ -248,7 +270,7 @@ export function Dashboard() {
           onImport={importCollection}
           onLogout={logout}
           onNewRequest={newRequest}
-          onPage={setActivePage}
+          onPage={navigate}
           onSearch={setSearch}
           onSelectCollection={setSelectedCollectionId}
           onSelectRequest={openRequest}
@@ -341,7 +363,7 @@ export function Dashboard() {
   );
 }
 
-function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings }: { email?: string | null; profileOpen: boolean; onInvite: () => void; onLogout: () => void; onProfile: () => void; onSettings: () => void }) {
+function TopBar({ email, profileOpen, onHome, onInvite, onLogout, onProfile, onSettings }: { email?: string | null; profileOpen: boolean; onHome: () => void; onInvite: () => void; onLogout: () => void; onProfile: () => void; onSettings: () => void }) {
   const displayEmail = email ?? 'user@apiautopsy.com';
   const displayName = displayEmail.split('@')[0].replace(/[._-]+/g, ' ');
   return (
@@ -350,7 +372,7 @@ function TopBar({ email, profileOpen, onInvite, onLogout, onProfile, onSettings 
         <img className="h-8 w-8 rounded-xl shadow-lg shadow-teal-950/30" src="/logo-mark.svg" alt="APIAutopsy" />
       </div>
       <nav className="hidden shrink-0 items-center gap-5 text-[15px] xl:flex">
-        <button className="font-medium">Home</button>
+        <button className="font-medium" onClick={onHome}>Home</button>
         <button className="flex items-center gap-1 font-medium">Workspaces <ChevronDown size={15} /></button>
         <button className="font-medium">API Network</button>
       </nav>
@@ -584,6 +606,14 @@ function normalizeHeaders(headers: Record<string, unknown>, draft: RequestDraft)
   if (draft.bodyMode === 'graphql') next['Content-Type'] = 'application/json';
   if (draft.bodyMode === 'raw' && draft.rawBodyFormat === 'JSON') next['Content-Type'] = next['Content-Type'] ?? 'application/json';
   return next;
+}
+
+function pageFromPath(pathname: string): AppPage {
+  const firstSegment = pathname.split('/').filter(Boolean)[0];
+  if (firstSegment === 'scheduler') return 'scheduler';
+  if (firstSegment === 'flows') return 'flows';
+  if (firstSegment === 'settings') return 'settings';
+  return 'requests';
 }
 
 function inferBodyMode(request: ApiRequest) {
