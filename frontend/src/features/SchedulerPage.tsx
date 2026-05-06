@@ -410,9 +410,9 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
   const consecutive = Math.max(1, Number(draft.consecutiveFailuresThreshold || 1));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-[#111827] shadow-2xl shadow-black/50">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-2xl shadow-black/50">
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-800 px-5 py-4">
           <div>
             <div className="flex items-center gap-2 font-semibold text-slate-100"><Bell size={18} />Alert settings</div>
             <div className="mt-1 text-xs text-slate-500">{schedule.name}</div>
@@ -420,7 +420,7 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
           <button className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-900 hover:text-slate-100" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <label className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
             <span className="flex items-center gap-2"><ShieldCheck size={16} />Enable smart alerts</span>
             <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
@@ -467,7 +467,7 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
           </label>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
+        <div className="shrink-0 flex justify-end gap-2 border-t border-slate-800 bg-[#111827] px-5 py-4">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <button
             className="flex h-10 items-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50"
@@ -508,13 +508,13 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
   const canSave = Boolean((draft.targetType === 'WORKFLOW' ? draft.collectionId : draft.apiRequestId) && draft.name.trim() && (draft.scheduleType === 'INTERVAL' ? draft.intervalMinutes >= 1 : draft.cronExpression.trim()));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-[#111827] shadow-2xl shadow-black/50">
-        <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-2xl shadow-black/50">
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-800 px-5 py-4">
           <div className="flex items-center gap-2 font-semibold text-slate-100"><CalendarClock size={18} />{schedule ? 'Edit Schedule' : 'Create Schedule'}</div>
           <button className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-900 hover:text-slate-100" onClick={onClose}><X size={18} /></button>
         </div>
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <label className="block">
             <FieldLabel>Schedule target</FieldLabel>
             <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.targetType} onChange={(event) => setDraft({ ...draft, targetType: event.target.value as Schedule['targetType'] })}>
@@ -593,7 +593,7 @@ function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onS
             </label>
           )}
         </div>
-        <div className="flex justify-end gap-2 border-t border-slate-800 px-5 py-4">
+        <div className="shrink-0 flex justify-end gap-2 border-t border-slate-800 bg-[#111827] px-5 py-4">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <button className="flex h-10 items-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50" disabled={isSaving || !canSave} onClick={() => onSave({
             targetType: draft.targetType,
