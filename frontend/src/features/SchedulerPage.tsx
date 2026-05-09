@@ -115,12 +115,8 @@ export function SchedulerPage({
 
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(520px,1fr)_minmax(360px,440px)]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
-          <div className="hidden grid-cols-[minmax(130px,1fr)_82px_82px_72px_190px] gap-2 border-b border-slate-800 bg-slate-950/60 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 min-[1180px]:grid">
-            <div>API</div>
-            <div>Schedule</div>
-            <div>Status</div>
-            <div>Alerts</div>
-            <div className="text-right">Actions</div>
+          <div className="border-b border-slate-800 bg-slate-950/60 px-4 py-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Monitors</div>
           </div>
 
           <div className="divide-y divide-slate-800">
@@ -137,7 +133,7 @@ export function SchedulerPage({
                   key={schedule.id}
                   role="button"
                   tabIndex={0}
-                  className={`group grid w-full cursor-pointer grid-cols-1 gap-4 px-4 py-4 text-left text-sm outline-none transition min-[1180px]:grid-cols-[minmax(130px,1fr)_82px_82px_72px_190px] min-[1180px]:items-center min-[1180px]:gap-2 ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70 focus:bg-slate-900/70'}`}
+                  className={`group flex w-full cursor-pointer flex-col gap-3 px-4 py-4 text-left text-sm outline-none transition ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70 focus:bg-slate-900/70'}`}
                   onClick={() => selectSchedule(schedule.id)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -146,28 +142,25 @@ export function SchedulerPage({
                     }
                   }}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-semibold text-slate-100">{title}</span>
-                      <span className="rounded-md bg-slate-950/80 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-300 min-[1180px]:hidden">{formatSchedule(schedule)}</span>
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-slate-100">{title}</span>
+                        <span className="rounded-md bg-slate-950/80 px-2 py-0.5 text-[10px] font-bold uppercase text-teal-300">{formatSchedule(schedule)}</span>
+                      </div>
+                      <div className="mt-1 truncate text-xs text-slate-500">{subtitle}</div>
+                      {schedule.publicStatusEnabled && schedule.publicSlug && (
+                        <span className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-indigo-500/15 px-2.5 py-1 text-[11px] font-bold text-indigo-200">
+                          <Globe2 size={12} />Status page
+                        </span>
+                      )}
                     </div>
-                    <div className="mt-1 truncate text-xs text-slate-500">{subtitle}</div>
-                    {schedule.publicStatusEnabled && schedule.publicSlug && (
-                      <span className="mt-2 inline-flex w-fit items-center gap-1.5 rounded-full bg-indigo-500/15 px-2.5 py-1 text-[11px] font-bold text-indigo-200">
-                        <Globe2 size={12} />Status page
-                      </span>
-                    )}
+                    <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
                   </div>
-                  <DataCell label="Schedule" className="hidden min-[1180px]:block">{formatSchedule(schedule)}</DataCell>
-                  <DataCell label="Status">
-                    <div className="flex flex-wrap gap-1.5">
-                      <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
-                    </div>
-                  </DataCell>
-                  <DataCell label="Alerts">
+                  <div className="flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
                     <button
                       aria-label={rule?.enabled ? 'Turn alerts off' : 'Turn alerts on'}
-                      className={`inline-flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-bold transition hover:scale-[1.03] disabled:cursor-wait disabled:opacity-60 ${incidentOpen ? 'bg-red-500/15 text-red-300 hover:bg-red-500/25' : rule?.enabled ? 'bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-100'}`}
+                      className={`inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${incidentOpen ? 'border-red-900/70 bg-red-950/30 text-red-300 hover:border-red-400' : rule?.enabled ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-200 hover:border-indigo-300' : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-indigo-400 hover:text-white'}`}
                       disabled={saveAlertRule.isPending}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -175,10 +168,8 @@ export function SchedulerPage({
                       }}
                     >
                       {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
-                      {incidentOpen ? 'OPEN' : rule?.enabled ? 'ON' : 'OFF'}
+                      Alert {incidentOpen ? 'open' : rule?.enabled ? 'on' : 'off'}
                     </button>
-                  </DataCell>
-                  <div className="flex flex-wrap items-center gap-1.5 min-[1180px]:justify-end" onClick={(event) => event.stopPropagation()}>
                     <ActionButton label={schedule.enabled ? 'Turn schedule off' : 'Turn schedule on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
                     <ActionButton label="Edit schedule" onClick={() => openEdit(schedule)}><Edit3 size={15} /><span>Edit</span></ActionButton>
                     <ActionButton danger label="Delete schedule" onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /><span>Delete</span></ActionButton>
