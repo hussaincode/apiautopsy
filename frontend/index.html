@@ -4,14 +4,89 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0C0C0C" />
-    <meta name="description" content="Build, test, schedule, and monitor APIs from one secure workspace." />
+    <meta name="description" content="APIAutopsy is a Postman-style API testing workspace with automated monitoring, scheduled checks, public status pages, and API failure insights." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://apiautopsy.com/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="mask-icon" href="/favicon.svg" color="#2DD4BF" />
     <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="APIAutopsy" />
+    <meta property="og:title" content="APIAutopsy - API testing and monitoring in one workspace" />
+    <meta property="og:description" content="Build, test, schedule, and monitor APIs from one secure workspace. A simpler Postman alternative with monitoring built in." />
+    <meta property="og:url" content="https://apiautopsy.com/" />
+    <meta property="og:image" content="https://apiautopsy.com/social-card.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="APIAutopsy - API testing and monitoring" />
+    <meta name="twitter:description" content="A simpler Postman alternative with scheduled API monitoring, reports, and public status pages." />
+    <meta name="twitter:image" content="https://apiautopsy.com/social-card.png" />
     <title>APIAutopsy</title>
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+        margin: 0;
+        background: #0c0f17;
+        color: #e5e7eb;
+      }
+
+      .app-loading {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 25% 25%, rgba(45, 212, 191, 0.16), transparent 32rem),
+          radial-gradient(circle at 75% 20%, rgba(99, 102, 241, 0.18), transparent 30rem),
+          #0c0f17;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .app-loading-card {
+        width: min(90vw, 34rem);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 1.5rem;
+        padding: 2rem;
+        background: rgba(15, 23, 42, 0.84);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+      }
+
+      .app-loading-mark {
+        width: 4rem;
+        height: 4rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .app-loading-title {
+        margin: 0;
+        font-size: clamp(2.25rem, 9vw, 4rem);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .app-loading-copy {
+        max-width: 28rem;
+        margin: 1rem 0 0;
+        color: #cbd5e1;
+        font-size: 1.05rem;
+        line-height: 1.7;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="app-loading" aria-label="Loading APIAutopsy">
+        <section class="app-loading-card">
+          <img class="app-loading-mark" src="/logo-mark.svg" alt="" />
+          <h1 class="app-loading-title">APIAutopsy</h1>
+          <p class="app-loading-copy">Build, test, schedule, and monitor APIs from one secure workspace.</p>
+        </section>
+      </main>
+    </div>
+    <noscript>APIAutopsy needs JavaScript enabled to run the API testing workspace.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
