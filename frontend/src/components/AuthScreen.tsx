@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../store/auth';
+import { normalizeEmailInput, normalizePasswordInput } from './authInput';
 
 export function AuthScreen() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -45,7 +46,8 @@ export function AuthScreen() {
     if (submitting) return;
     setError('');
     setNotice('');
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmailInput(email);
+    const normalizedPassword = normalizePasswordInput(password);
     if (mode === 'register' && pendingEmail) {
       if (!otp.trim()) {
         setError('Please enter the verification code.');
@@ -70,14 +72,14 @@ export function AuthScreen() {
       setError('Please provide a valid email address.');
       return;
     }
-    if (!password.trim()) {
+    if (!normalizedPassword) {
       setError('Please enter your password.');
       return;
     }
     setSubmitting(true);
     try {
       const path = mode === 'login' ? '/auth/login' : '/auth/register';
-      const payload = mode === 'login' ? { email: normalizedEmail, password } : { email: normalizedEmail, password, name: name.trim() };
+      const payload = mode === 'login' ? { email: normalizedEmail, password: normalizedPassword } : { email: normalizedEmail, password: normalizedPassword, name: name.trim() };
       const { data } = await api.post(path, payload);
       if (mode === 'register') {
         setPendingEmail(data.email);
@@ -102,7 +104,7 @@ export function AuthScreen() {
             <h1 className="max-w-2xl text-5xl font-semibold tracking-normal text-white">APIAutopsy</h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">Build, test, schedule, and monitor APIs from one secure multi-tenant workspace.</p>
           </div>
-          <form className="rounded-lg border border-line bg-panel p-6 shadow-2xl" noValidate onSubmit={(event) => { event.preventDefault(); submit(); }}>
+          <form className="rounded-lg border border-line bg-panel p-6 shadow-2xl" autoComplete={mode === 'login' ? 'on' : 'off'} noValidate onSubmit={(event) => { event.preventDefault(); submit(); }}>
             <div className="mb-6 grid grid-cols-2 rounded-md bg-slate-950 p-1">
               <button type="button" disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('login'); setPendingEmail(''); setNotice(''); setError(''); }}>Login</button>
               <button type="button" disabled={submitting} className={`rounded px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-brand text-ink' : 'text-slate-300'}`} onClick={() => { setMode('register'); setNotice(''); setError(''); }}>Register</button>
@@ -115,9 +117,9 @@ export function AuthScreen() {
               </>
             ) : (
               <>
-                {mode === 'register' && <input autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
-                <input autoCapitalize="none" autoComplete="email" autoCorrect="off" inputMode="email" type="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onBlur={() => setEmail((value) => value.trim().toLowerCase())} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-                <input autoCapitalize="none" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} autoCorrect="off" disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
+                {mode === 'register' && <input id="name" name="name" autoComplete="name" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />}
+                <input id="email" name="email" autoCapitalize="none" autoComplete="username email" autoCorrect="off" spellCheck={false} inputMode="email" type="email" disabled={submitting} className="mb-3 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={email} onBlur={() => setEmail(normalizeEmailInput)} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
+                <input id="password" name="password" autoCapitalize="none" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} autoCorrect="off" spellCheck={false} disabled={submitting} className="mb-4 w-full rounded-md border border-line bg-slate-950 px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60" value={password} onBlur={() => setPassword(normalizePasswordInput)} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" />
               </>
             )}
             {notice && <p className="mb-3 text-sm text-teal-200">{notice}</p>}
