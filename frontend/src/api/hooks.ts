@@ -115,9 +115,11 @@ export function useDeleteSchedule(workspaceId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => (await api.delete(`/workspaces/${workspaceId}/schedules/${id}`)).data,
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current?.filter((schedule) => schedule.id !== id) ?? []);
       qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
       qc.invalidateQueries({ queryKey: ['executions', workspaceId] });
+      qc.removeQueries({ queryKey: ['schedule-detail', workspaceId, id] });
     }
   });
 }
