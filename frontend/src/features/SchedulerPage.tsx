@@ -168,7 +168,7 @@ export function SchedulerPage({
                       }}
                     >
                       {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
-                      Alert {incidentOpen ? 'open' : rule?.enabled ? 'on' : 'off'}
+                      Alerts {incidentOpen ? 'open' : rule?.enabled ? 'on' : 'off'}
                     </button>
                     <ActionButton label={schedule.enabled ? 'Turn schedule off' : 'Turn schedule on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
                     <ActionButton label="Edit schedule" onClick={() => openEdit(schedule)}><Edit3 size={15} /><span>Edit</span></ActionButton>
@@ -284,7 +284,7 @@ function ScheduleDetailPanel({ assertions, collectionName, executions, incidents
 
       <div className="px-5 pb-5">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-100">Alert incidents</h3>
+          <h3 className="text-sm font-semibold text-slate-100">Incidents</h3>
           <span className="text-xs text-slate-500">{incidents.filter((incident) => incident.status === 'OPEN').length} open</span>
         </div>
         <div className="overflow-hidden rounded-xl border border-slate-800">
@@ -302,7 +302,7 @@ function ScheduleDetailPanel({ assertions, collectionName, executions, incidents
               )}
             </div>
           ))}
-          {incidents.length === 0 && <div className="p-4 text-center text-sm text-slate-500">No alert incidents for this schedule.</div>}
+          {incidents.length === 0 && <div className="p-4 text-center text-sm text-slate-500">No incidents for this schedule.</div>}
         </div>
       </div>
 
