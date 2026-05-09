@@ -157,23 +157,25 @@ export function SchedulerPage({
                     </div>
                     <StatusPill active={schedule.enabled} activeLabel="ON" inactiveLabel="OFF" />
                   </div>
-                  <div className="flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                    <button
-                      aria-label={rule?.enabled ? 'Turn alerts off' : 'Turn alerts on'}
-                      className={`inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${incidentOpen ? 'border-red-900/70 bg-red-950/30 text-red-300 hover:border-red-400' : rule?.enabled ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-200 hover:border-indigo-300' : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-indigo-400 hover:text-white'}`}
-                      disabled={saveAlertRule.isPending}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleAlertRule(schedule, rule);
-                      }}
-                    >
-                      {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
-                      Alerts {incidentOpen ? 'open' : rule?.enabled ? 'on' : 'off'}
-                    </button>
-                    <ActionButton label={schedule.enabled ? 'Turn schedule off' : 'Turn schedule on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
-                    <ActionButton label="Edit schedule" onClick={() => openEdit(schedule)}><Edit3 size={15} /><span>Edit</span></ActionButton>
-                    <ActionButton danger label="Delete schedule" onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /><span>Delete</span></ActionButton>
-                  </div>
+                  {active && (
+                    <div className="flex flex-wrap items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                      <button
+                        aria-label={rule?.enabled ? 'Turn alerts off' : 'Turn alerts on'}
+                        className={`inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition disabled:cursor-wait disabled:opacity-60 ${incidentOpen ? 'border-red-900/70 bg-red-950/30 text-red-300 hover:border-red-400' : rule?.enabled ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-200 hover:border-indigo-300' : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-indigo-400 hover:text-white'}`}
+                        disabled={saveAlertRule.isPending}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleAlertRule(schedule, rule);
+                        }}
+                      >
+                        {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
+                        Alerts {incidentOpen ? 'open' : rule?.enabled ? 'on' : 'off'}
+                      </button>
+                      <ActionButton label={schedule.enabled ? 'Turn schedule off' : 'Turn schedule on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
+                      <ActionButton label="Edit schedule" onClick={() => openEdit(schedule)}><Edit3 size={15} /><span>Edit</span></ActionButton>
+                      <ActionButton danger label="Delete schedule" onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /><span>Delete</span></ActionButton>
+                    </div>
+                  )}
                 </div>
               );
             })}
