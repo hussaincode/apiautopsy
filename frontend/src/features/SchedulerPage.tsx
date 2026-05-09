@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Copy, Edit3, ExternalLink, Gauge, Globe2, Info, Plus, SearchCheck, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Copy, Edit3, ExternalLink, Gauge, Globe2, Info, Plus, Power, SearchCheck, ShieldCheck, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAlertIncidents, useAlertRules, useCreateAssertion, useDeleteAssertion, useResolveAlertIncident, useSaveAlertRule, useScheduleAssertions, useScheduleDetail } from '../api/hooks';
 import { Button, EmptyState, FieldLabel, Input, Select } from '../components/ui';
@@ -170,6 +170,7 @@ export function SchedulerPage({
                       {incidentOpen ? <AlertTriangle size={13} /> : <Bell size={13} />}
                       Alerts {incidentOpen ? 'open' : rule?.enabled ? 'on' : 'off'}
                     </button>
+                    <ActionButton label={schedule.enabled ? 'Turn schedule off' : 'Turn schedule on'} onClick={() => onToggleSchedule(schedule)}><Power size={15} /><span>{schedule.enabled ? 'Off' : 'On'}</span></ActionButton>
                     <ActionButton label="Edit schedule" onClick={() => openEdit(schedule)}><Edit3 size={15} /><span>Edit</span></ActionButton>
                     <ActionButton danger label="Delete schedule" onClick={() => deleteSchedule(schedule)}><Trash2 size={15} /><span>Delete</span></ActionButton>
                   </div>
