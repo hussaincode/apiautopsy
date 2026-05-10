@@ -169,7 +169,7 @@ export function Dashboard() {
   async function saveRequest() {
     const payload = toPayload();
     if (!isAuthenticated) {
-      const saved = saveGuestRequest(payload);
+      const saved = saveGuestRequest(payload, draft.id);
       openRequest(saved.id);
       setDraft(fromRequest(saved));
       return saved;
@@ -340,8 +340,8 @@ export function Dashboard() {
     setToast(`Schedule turned ${schedule.enabled ? 'off' : 'on'}`);
   }
 
-  function saveGuestRequest(payload: ReturnType<typeof toPayload>) {
-      const saved = createGuestRequest(payload, draft.id);
+  function saveGuestRequest(payload: ReturnType<typeof toPayload>, existingId?: string) {
+    const saved = createGuestRequest(payload, existingId);
     setGuestRequests((current) => persistGuestRequests([saved, ...current.filter((request) => request.id !== saved.id)]));
     return saved;
   }

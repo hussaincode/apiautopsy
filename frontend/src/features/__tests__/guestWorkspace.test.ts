@@ -23,6 +23,22 @@ describe('guest workspace storage', () => {
     expect(request.name).toBe('Guest request');
   });
 
+  it('can update an existing local request when an id is provided', () => {
+    const request = createGuestRequest({
+      name: 'Updated request',
+      method: 'POST',
+      url: 'https://example.com',
+      headers: {},
+      queryParams: {},
+      bodyType: 'JSON',
+      body: { ok: true },
+      authType: 'NONE'
+    }, 'request-id');
+
+    expect(request.id).toBe('request-id');
+    expect(request.method).toBe('POST');
+  });
+
   it('persists collections and requests locally for guests', () => {
     persistGuestCollections([{ id: 'collection-id', name: 'Guest collection' }]);
     persistGuestRequests([createGuestRequest({
