@@ -1,6 +1,6 @@
 import type { ApiRequest, HttpMethod } from '../types/domain';
 
-export type AppPage = 'requests' | 'scheduler' | 'flows' | 'settings';
+export type AppPage = 'requests' | 'monitoring' | 'scheduler' | 'flows' | 'settings';
 export type BuilderTab = 'params' | 'headers' | 'body' | 'auth' | 'certificates';
 export type RequestBodyMode = 'none' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
 export type RawBodyFormat = 'JSON' | 'Text';

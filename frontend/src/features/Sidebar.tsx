@@ -5,6 +5,7 @@ import {
   Folder,
   History,
   Import,
+  Activity,
   Plus,
   Search,
   Settings,
@@ -89,6 +90,7 @@ export function Sidebar({
       <div className="flex w-[74px] flex-col items-center border-r border-slate-800 bg-[#111827] py-3">
         <RailButton active={activePage === 'requests'} icon={<Boxes size={21} />} label="Collections" onClick={() => onPage('requests')} />
         <RailButton icon={<Database size={21} />} label="Environments" onClick={() => onPage('settings')} />
+        <RailButton active={activePage === 'monitoring'} icon={<Activity size={21} />} label="Monitoring" onClick={() => onPage('monitoring')} />
         <RailButton active={activePage === 'scheduler'} icon={<Timer size={21} />} label="Scheduler" onClick={() => onPage('scheduler')} />
         <RailButton active={activePage === 'flows'} icon={<Workflow size={21} />} label="Flows" onClick={() => onPage('flows')} />
         <RailButton icon={<History size={21} />} label="History" onClick={() => onPage('requests')} />

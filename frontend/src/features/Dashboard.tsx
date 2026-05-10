@@ -28,6 +28,7 @@ import type { ApiRequest, Collection, Execution, Schedule } from '../types/domai
 import { RequestBuilder } from './RequestBuilder';
 import { RequestTabs } from './RequestTabs';
 import { ResponseViewer } from './ResponseViewer';
+import { MonitoringPage } from './MonitoringPage';
 import { SchedulerPage } from './SchedulerPage';
 import { SettingsPage } from './SettingsPage';
 import { Sidebar } from './Sidebar';
@@ -37,6 +38,7 @@ import { createGuestRequest, persistGuestCollections, persistGuestRequests, read
 
 const pageRoutes: Record<AppPage, string> = {
   requests: '/requests',
+  monitoring: '/monitoring',
   scheduler: '/scheduler',
   flows: '/flows',
   settings: '/settings'
@@ -428,6 +430,16 @@ export function Dashboard() {
           />
         )}
 
+        {activePage === 'monitoring' && (
+          <MonitoringPage
+            collections={collectionList}
+            executions={executions.data ?? []}
+            requests={requestList}
+            schedules={schedules.data ?? []}
+            onOpenScheduler={() => navigate('scheduler')}
+          />
+        )}
+
         {activePage === 'settings' && <SettingsPage workspaceId={workspaceId} />}
         {activePage === 'flows' && <FlowsPage collections={collectionList} requests={requestList} workspaceId={workspaceId} />}
       </section>
@@ -726,6 +738,7 @@ function normalizeHeaders(headers: Record<string, unknown>, draft: RequestDraft)
 
 function pageFromPath(pathname: string): AppPage {
   const firstSegment = pathname.split('/').filter(Boolean)[0];
+  if (firstSegment === 'monitoring') return 'monitoring';
   if (firstSegment === 'scheduler') return 'scheduler';
   if (firstSegment === 'flows') return 'flows';
   if (firstSegment === 'settings') return 'settings';
@@ -741,6 +754,7 @@ function inferBodyMode(request: ApiRequest) {
 }
 
 function protectedFeatureMessage(page: AppPage) {
+  if (page === 'monitoring') return 'Sign in to view production API monitoring, pass/fail trends, availability, and latency analytics.';
   if (page === 'scheduler') return 'Sign in to schedule API checks, monitor uptime, send alerts, and publish status pages.';
   if (page === 'flows') return 'Sign in to save and run workflow-based API monitoring.';
   if (page === 'settings') return 'Sign in to manage workspace settings, certificates, environments, and API secrets.';
