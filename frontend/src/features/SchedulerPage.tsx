@@ -2,6 +2,7 @@ import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Cop
 import { useEffect, useMemo, useState } from 'react';
 import { useAlertIncidents, useAlertRules, useCreateAssertion, useDeleteAssertion, useResolveAlertIncident, useSaveAlertRule, useScheduleAssertions, useScheduleDetail } from '../api/hooks';
 import { Button, EmptyState, FieldLabel, Input, Select } from '../components/ui';
+import { canContinueMonitoringStep, createMonitoringDraft, monitoringStepLabels, normalizeStatusSlug, type MonitorWizardDraft } from './schedulerWizard';
 import type { AlertIncident, AlertRule, ApiRequest, AssertionType, Execution, Schedule, ScheduleAssertion, ScheduleType } from '../types/domain';
 import type { Collection } from '../types/domain';
 
@@ -473,129 +474,285 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
 }
 
 function ScheduleModal({ collections, isSaving, requests, schedule, onClose, onSave }: { collections: Collection[]; isSaving: boolean; requests: ApiRequest[]; schedule?: Schedule; onClose: () => void; onSave: (payload: SchedulePayload) => Promise<void> }) {
-  const [draft, setDraft] = useState({
-    targetType: schedule?.targetType ?? 'REQUEST' as Schedule['targetType'],
-    apiRequestId: schedule?.apiRequestId ?? requests[0]?.id ?? '',
-    collectionId: schedule?.collectionId ?? collections[0]?.id ?? '',
-    name: schedule?.name ?? 'Production health check',
-    scheduleType: schedule?.scheduleType ?? 'INTERVAL' as ScheduleType,
-    intervalMinutes: schedule?.intervalMinutes ?? 5,
-    cronExpression: schedule?.cronExpression ?? '0 */5 * * * *',
-    enabled: schedule?.enabled ?? true,
-    sloUptimeTarget: schedule?.sloUptimeTarget ?? 99,
-    sloLatencyP95Ms: schedule?.sloLatencyP95Ms ?? 1000,
-    publicStatusEnabled: schedule?.publicStatusEnabled ?? false,
-    publicSlug: schedule?.publicSlug ?? ''
-  });
+  const [step, setStep] = useState(schedule ? 1 : 0);
+  const [draft, setDraft] = useState<MonitorWizardDraft>(() => createMonitoringDraft(schedule, requests, collections));
+  const selectedRequest = requests.find((request) => request.id === draft.apiRequestId);
+  const selectedCollection = collections.find((collection) => collection.id === draft.collectionId);
+  const canGoNext = canContinueMonitoringStep(step, draft);
+  const canSave = monitoringStepLabels.every((_, index) => canContinueMonitoringStep(index, draft));
 
-  const canSave = Boolean((draft.targetType === 'WORKFLOW' ? draft.collectionId : draft.apiRequestId) && draft.name.trim() && (draft.scheduleType === 'INTERVAL' ? draft.intervalMinutes >= 1 : draft.cronExpression.trim()));
+  function patchDraft(update: Partial<MonitorWizardDraft>) {
+    setDraft((current) => ({ ...current, ...update }));
+  }
+
+  function save() {
+    const publicSlug = normalizeStatusSlug(draft.publicSlug || draft.name);
+    onSave({
+      targetType: draft.targetType,
+      apiRequestId: draft.targetType === 'REQUEST' ? draft.apiRequestId : undefined,
+      collectionId: draft.targetType === 'WORKFLOW' ? draft.collectionId : undefined,
+      name: draft.name.trim(),
+      scheduleType: draft.scheduleType,
+      intervalMinutes: draft.scheduleType === 'INTERVAL' ? draft.intervalMinutes : undefined,
+      cronExpression: draft.scheduleType === 'CRON' ? draft.cronExpression.trim() : undefined,
+      enabled: draft.enabled,
+      sloUptimeTarget: draft.sloUptimeTarget,
+      sloLatencyP95Ms: draft.sloLatencyP95Ms,
+      publicStatusEnabled: draft.publicStatusEnabled,
+      publicSlug: draft.publicStatusEnabled ? publicSlug : undefined
+    });
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
-      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-2xl shadow-black/50">
-        <div className="shrink-0 flex items-center justify-between border-b border-slate-800 px-5 py-4">
-          <div className="flex items-center gap-2 font-semibold text-slate-100"><CalendarClock size={18} />{schedule ? 'Edit Schedule' : 'Create Schedule'}</div>
-          <button className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-900 hover:text-slate-100" onClick={onClose}><X size={18} /></button>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-6">
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-slate-700/80 bg-[#111827] shadow-2xl shadow-black/60">
+        <div className="shrink-0 border-b border-slate-800 bg-[#0f1424] px-5 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-teal-300"><CalendarClock size={18} /> APIAutopsy monitoring setup</div>
+              <h2 className="mt-2 text-2xl font-bold text-slate-50">{schedule ? 'Edit monitor' : 'Create a monitor'}</h2>
+              <p className="mt-1 text-sm text-slate-400">A guided flow for scheduled checks, uptime metrics, and client-safe status pages.</p>
+            </div>
+            <button className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-900 hover:text-slate-100" onClick={onClose} aria-label="Close monitoring setup"><X size={20} /></button>
+          </div>
+          <div className="mt-6 grid gap-3 lg:grid-cols-5">
+            {monitoringStepLabels.map((label, index) => (
+              <button
+                key={label}
+                className={`flex min-h-12 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition ${step === index ? 'border-sky-300 bg-sky-400 text-slate-950 shadow-lg shadow-sky-950/30' : index < step ? 'border-teal-400/50 bg-teal-500/10 text-teal-200' : 'border-slate-600 bg-slate-950/30 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`}
+                onClick={() => setStep(index)}
+              >
+                Step {index + 1} - {label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-          <label className="block">
-            <FieldLabel>Schedule target</FieldLabel>
-            <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.targetType} onChange={(event) => setDraft({ ...draft, targetType: event.target.value as Schedule['targetType'] })}>
-              <option value="REQUEST">Single API request</option>
-              <option value="WORKFLOW">Collection workflow</option>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-8">
+          <div className="rounded-3xl border border-slate-700/80 bg-slate-900/60 p-5 sm:p-8">
+            {step === 0 && <MonitoringOwnerStep draft={draft} onChange={patchDraft} />}
+            {step === 1 && <MonitoringTargetStep collections={collections} draft={draft} requests={requests} selectedCollection={selectedCollection} selectedRequest={selectedRequest} onChange={patchDraft} />}
+            {step === 2 && <MonitoringScheduleStep draft={draft} onChange={patchDraft} />}
+            {step === 3 && <MonitoringChecksStep draft={draft} onChange={patchDraft} />}
+            {step === 4 && <MonitoringSummaryStep draft={draft} selectedCollection={selectedCollection} selectedRequest={selectedRequest} />}
+          </div>
+        </div>
+
+        <div className="shrink-0 flex flex-col-reverse gap-3 border-t border-slate-800 bg-[#0f1424] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <div className="flex gap-2">
+            <button className="h-11 rounded-xl border border-slate-700 px-4 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-40" disabled={step === 0} onClick={() => setStep((current) => Math.max(0, current - 1))}>Back</button>
+            {step < monitoringStepLabels.length - 1 ? (
+              <button className="h-11 rounded-xl bg-indigo-500 px-5 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50" disabled={!canGoNext} onClick={() => setStep((current) => Math.min(monitoringStepLabels.length - 1, current + 1))}>Next</button>
+            ) : (
+              <button className="inline-flex h-11 items-center gap-2 rounded-xl bg-teal-400 px-5 text-sm font-bold text-slate-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50" disabled={isSaving || !canSave} onClick={save}>
+                <CheckCircle2 size={16} />{isSaving ? 'Saving...' : schedule ? 'Save monitor' : 'Create monitor'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonitoringOwnerStep({ draft, onChange }: { draft: MonitorWizardDraft; onChange: (update: Partial<MonitorWizardDraft>) => void }) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-sky-300">You are ready to monitor</p>
+        <h3 className="mt-3 text-3xl font-bold text-slate-50">Tell us how this monitor will be used.</h3>
+        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Keep it personal for a quick API check, or mark it as work when you are sharing uptime and latency with a team or client.</p>
+      </div>
+      <div className="grid gap-4">
+        <label>
+          <FieldLabel>Your name</FieldLabel>
+          <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="Monitoring owner" value={draft.ownerName} onChange={(event) => onChange({ ownerName: event.target.value })} />
+        </label>
+        <label>
+          <FieldLabel>Work email</FieldLabel>
+          <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="you@company.com" value={draft.workEmail} onChange={(event) => onChange({ workEmail: event.target.value })} />
+          <p className="mt-2 text-xs text-slate-500">Alerts are configured separately after creation. This field helps name the setup context.</p>
+        </label>
+        <div>
+          <FieldLabel>Project type</FieldLabel>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(['PERSONAL', 'WORK'] as const).map((kind) => (
+              <button key={kind} className={`rounded-2xl border p-4 text-left transition ${draft.projectKind === kind ? 'border-sky-300 bg-sky-400/10 text-slate-50' : 'border-slate-700 bg-slate-950/40 text-slate-300 hover:border-slate-500'}`} onClick={() => onChange({ projectKind: kind })}>
+                <span className="font-semibold">{kind === 'PERSONAL' ? 'Personal project' : 'Work or client API'}</span>
+                <span className="mt-2 block text-xs leading-5 text-slate-500">{kind === 'PERSONAL' ? 'Fast checks while building.' : 'Uptime, latency, and status page ready.'}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonitoringTargetStep({ collections, draft, requests, selectedCollection, selectedRequest, onChange }: { collections: Collection[]; draft: MonitorWizardDraft; requests: ApiRequest[]; selectedCollection?: Collection; selectedRequest?: ApiRequest; onChange: (update: Partial<MonitorWizardDraft>) => void }) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-sky-300">Project details</p>
+        <h3 className="mt-3 text-3xl font-bold text-slate-50">Choose what APIAutopsy should watch.</h3>
+        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Start with one saved request for production health checks. Use workflow mode when your API needs login, token extraction, and chained requests.</p>
+        <PreviewCard title={draft.targetType === 'WORKFLOW' ? selectedCollection?.name ?? 'No workflow selected' : selectedRequest?.name ?? 'No API selected'} body={draft.targetType === 'WORKFLOW' ? 'Collection workflow' : `${selectedRequest?.method ?? 'GET'} ${selectedRequest?.url ?? 'Create a saved request first'}`} />
+      </div>
+      <div className="grid gap-4">
+        <label>
+          <FieldLabel>Monitor target</FieldLabel>
+          <Select className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.targetType} onChange={(event) => onChange({ targetType: event.target.value as Schedule['targetType'] })}>
+            <option value="REQUEST">Single API request</option>
+            <option value="WORKFLOW">Collection workflow</option>
+          </Select>
+        </label>
+        {draft.targetType === 'WORKFLOW' ? (
+          <label>
+            <FieldLabel>Select collection workflow</FieldLabel>
+            <Select className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.collectionId} onChange={(event) => onChange({ collectionId: event.target.value })}>
+              {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
             </Select>
           </label>
-          {draft.targetType === 'WORKFLOW' ? (
-            <label className="block">
-              <FieldLabel>Select collection workflow</FieldLabel>
-              <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.collectionId} onChange={(event) => setDraft({ ...draft, collectionId: event.target.value })}>
-                {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
-              </Select>
-            </label>
-          ) : (
-          <label className="block">
+        ) : (
+          <label>
             <FieldLabel>Select API</FieldLabel>
-            <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.apiRequestId} onChange={(event) => setDraft({ ...draft, apiRequestId: event.target.value })}>
+            <Select className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.apiRequestId} onChange={(event) => onChange({ apiRequestId: event.target.value })}>
               {requests.map((request) => <option key={request.id} value={request.id}>{request.name}</option>)}
             </Select>
           </label>
-          )}
-          <label className="block">
-            <FieldLabel>Schedule name</FieldLabel>
-            <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-          </label>
-          <label className="block">
-            <FieldLabel>Schedule type</FieldLabel>
-            <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.scheduleType} onChange={(event) => setDraft({ ...draft, scheduleType: event.target.value as ScheduleType })}>
-              <option value="INTERVAL">Simple interval</option>
-              <option value="CRON">Advanced cron</option>
+        )}
+        <label>
+          <FieldLabel>Monitor name</FieldLabel>
+          <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.name} onChange={(event) => onChange({ name: event.target.value, publicSlug: draft.publicStatusEnabled ? normalizeStatusSlug(event.target.value) : draft.publicSlug })} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function MonitoringScheduleStep({ draft, onChange }: { draft: MonitorWizardDraft; onChange: (update: Partial<MonitorWizardDraft>) => void }) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-sky-300">Monitor your own API</p>
+        <h3 className="mt-3 text-3xl font-bold text-slate-50">Pick the check frequency.</h3>
+        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">Simple intervals are best for most teams. Advanced cron stays available for precise production windows.</p>
+        <PreviewCard title={draft.enabled ? 'Runs automatically' : 'Created paused'} body={draft.scheduleType === 'INTERVAL' ? `Every ${draft.intervalMinutes} minutes from APIAutopsy` : `Cron: ${draft.cronExpression}`} />
+      </div>
+      <div className="grid gap-4">
+        <label>
+          <FieldLabel>Schedule type</FieldLabel>
+          <Select className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.scheduleType} onChange={(event) => onChange({ scheduleType: event.target.value as ScheduleType })}>
+            <option value="INTERVAL">Simple interval</option>
+            <option value="CRON">Advanced cron</option>
+          </Select>
+        </label>
+        {draft.scheduleType === 'INTERVAL' ? (
+          <label>
+            <FieldLabel>Run every</FieldLabel>
+            <Select className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" value={draft.intervalMinutes} onChange={(event) => onChange({ intervalMinutes: Number(event.target.value) })}>
+              <option value={1}>1 minute</option>
+              <option value={5}>5 minutes</option>
+              <option value={10}>10 minutes</option>
+              <option value={15}>15 minutes</option>
+              <option value={30}>30 minutes</option>
+              <option value={60}>1 hour</option>
             </Select>
           </label>
-          {draft.scheduleType === 'INTERVAL' ? (
-            <label className="block">
-              <FieldLabel>Run every</FieldLabel>
-              <Select className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={draft.intervalMinutes} onChange={(event) => setDraft({ ...draft, intervalMinutes: Number(event.target.value) })}>
-                <option value={1}>1 minute</option>
-                <option value={5}>5 minutes</option>
-                <option value={10}>10 minutes</option>
-                <option value={15}>15 minutes</option>
-                <option value={30}>30 minutes</option>
-                <option value={60}>1 hour</option>
-              </Select>
-            </label>
-          ) : (
-            <label className="block">
-              <FieldLabel>Cron expression</FieldLabel>
-              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 font-mono text-slate-100 focus:border-indigo-500" value={draft.cronExpression} onChange={(event) => setDraft({ ...draft, cronExpression: event.target.value })} />
-            </label>
-          )}
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
-            Enable schedule
+        ) : (
+          <label>
+            <FieldLabel>Cron expression</FieldLabel>
+            <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 font-mono text-slate-100" value={draft.cronExpression} onChange={(event) => onChange({ cronExpression: event.target.value })} />
           </label>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <FieldLabel>Uptime SLO target (%)</FieldLabel>
-              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" inputMode="decimal" value={draft.sloUptimeTarget} onChange={(event) => setDraft({ ...draft, sloUptimeTarget: Number(event.target.value) })} />
-            </label>
-            <label className="block">
-              <FieldLabel>P95 latency target (ms)</FieldLabel>
-              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" inputMode="numeric" value={draft.sloLatencyP95Ms} onChange={(event) => setDraft({ ...draft, sloLatencyP95Ms: Number(event.target.value) })} />
-            </label>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={draft.publicStatusEnabled} onChange={(event) => setDraft({ ...draft, publicStatusEnabled: event.target.checked })} />
-            Publish read-only status page
-          </label>
-          <p className="-mt-2 text-xs leading-5 text-slate-500">Creates a client-safe page with current health, uptime, latency, and recent checks. Response bodies and secrets are never shown.</p>
-          {draft.publicStatusEnabled && (
-            <label className="block">
-              <FieldLabel>Public URL slug</FieldLabel>
-              <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" placeholder="production-health" value={draft.publicSlug} onChange={(event) => setDraft({ ...draft, publicSlug: event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} />
-              <p className="mt-2 truncate text-xs text-slate-500">Preview: /status/{draft.publicSlug || 'production-health'}</p>
-            </label>
-          )}
-        </div>
-        <div className="shrink-0 flex justify-end gap-2 border-t border-slate-800 bg-[#111827] px-5 py-4">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <button className="flex h-10 items-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50" disabled={isSaving || !canSave} onClick={() => onSave({
-            targetType: draft.targetType,
-            apiRequestId: draft.targetType === 'REQUEST' ? draft.apiRequestId : undefined,
-            collectionId: draft.targetType === 'WORKFLOW' ? draft.collectionId : undefined,
-            name: draft.name.trim(),
-            scheduleType: draft.scheduleType,
-            intervalMinutes: draft.scheduleType === 'INTERVAL' ? draft.intervalMinutes : undefined,
-            cronExpression: draft.scheduleType === 'CRON' ? draft.cronExpression.trim() : undefined,
-            enabled: draft.enabled,
-            sloUptimeTarget: draft.sloUptimeTarget,
-            sloLatencyP95Ms: draft.sloLatencyP95Ms,
-            publicStatusEnabled: draft.publicStatusEnabled,
-            publicSlug: draft.publicStatusEnabled ? draft.publicSlug.trim() : undefined
-          })}>
-            <CheckCircle2 size={16} />{schedule ? 'Save changes' : 'Create'}
-          </button>
-        </div>
+        )}
+        <label className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-slate-950/50 p-4 text-sm font-semibold text-slate-200">
+          <input className="h-5 w-5 accent-indigo-500" type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
+          Enable this monitor immediately
+        </label>
       </div>
+    </div>
+  );
+}
+
+function MonitoringChecksStep({ draft, onChange }: { draft: MonitorWizardDraft; onChange: (update: Partial<MonitorWizardDraft>) => void }) {
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-sky-300">Checks and status</p>
+        <h3 className="mt-3 text-3xl font-bold text-slate-50">Define what healthy means.</h3>
+        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">APIAutopsy will track HTTP success, latency, and uptime automatically. You can add deeper JSON/body checks from the monitor detail panel after setup.</p>
+        <PreviewCard title={draft.publicStatusEnabled ? 'Client status page enabled' : 'Private monitor'} body={draft.publicStatusEnabled ? `/status/${normalizeStatusSlug(draft.publicSlug || draft.name)}` : 'Only signed-in workspace members can see results.'} />
+      </div>
+      <div className="grid gap-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label>
+            <FieldLabel>Uptime target (%)</FieldLabel>
+            <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="decimal" value={draft.sloUptimeTarget} onChange={(event) => onChange({ sloUptimeTarget: Number(event.target.value) })} />
+          </label>
+          <label>
+            <FieldLabel>P95 latency target (ms)</FieldLabel>
+            <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="numeric" value={draft.sloLatencyP95Ms} onChange={(event) => onChange({ sloLatencyP95Ms: Number(event.target.value) })} />
+          </label>
+        </div>
+        <label className="flex items-start gap-3 rounded-2xl border border-slate-700 bg-slate-950/50 p-4 text-sm text-slate-300">
+          <input className="mt-1 h-5 w-5 accent-indigo-500" type="checkbox" checked={draft.publicStatusEnabled} onChange={(event) => onChange({ publicStatusEnabled: event.target.checked, publicSlug: draft.publicSlug || normalizeStatusSlug(draft.name) })} />
+          <span>
+            <span className="block font-semibold text-slate-100">Publish a read-only status page</span>
+            <span className="mt-1 block text-xs leading-5 text-slate-500">Safe to share with clients. It never exposes response bodies, headers, tokens, or secrets.</span>
+          </span>
+        </label>
+        {draft.publicStatusEnabled && (
+          <label>
+            <FieldLabel>Public URL slug</FieldLabel>
+            <Input className="h-14 w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="production-health" value={draft.publicSlug} onChange={(event) => onChange({ publicSlug: normalizeStatusSlug(event.target.value) })} />
+            <p className="mt-2 text-xs text-slate-500">Preview: /status/{normalizeStatusSlug(draft.publicSlug || draft.name) || 'production-health'}</p>
+          </label>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MonitoringSummaryStep({ draft, selectedCollection, selectedRequest }: { draft: MonitorWizardDraft; selectedCollection?: Collection; selectedRequest?: ApiRequest }) {
+  const targetName = draft.targetType === 'WORKFLOW' ? selectedCollection?.name ?? 'Collection workflow' : selectedRequest?.name ?? 'API request';
+  const targetUrl = draft.targetType === 'WORKFLOW' ? 'Workflow execution' : `${selectedRequest?.method ?? 'GET'} ${selectedRequest?.url ?? ''}`;
+  const statusSlug = normalizeStatusSlug(draft.publicSlug || draft.name);
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-wide text-sky-300">Summary</p>
+        <h3 className="mt-3 text-3xl font-bold text-slate-50">Review before APIAutopsy starts watching.</h3>
+        <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">After creation, the scheduler will run this monitor, log every execution, calculate SLO health, and show incidents when checks fail.</p>
+      </div>
+      <div className="grid gap-3">
+        <SummaryRow label="Monitor" value={draft.name} />
+        <SummaryRow label="Target" value={targetName} helper={targetUrl} />
+        <SummaryRow label="Schedule" value={draft.scheduleType === 'INTERVAL' ? `Every ${draft.intervalMinutes} minutes` : draft.cronExpression} helper={draft.enabled ? 'Enabled immediately' : 'Created paused'} />
+        <SummaryRow label="Health goals" value={`${draft.sloUptimeTarget}% uptime, p95 under ${draft.sloLatencyP95Ms} ms`} />
+        <SummaryRow label="Public status page" value={draft.publicStatusEnabled ? `/status/${statusSlug}` : 'Private'} helper={draft.publicStatusEnabled ? 'Shareable and response-safe' : 'Can be enabled later'} />
+      </div>
+    </div>
+  );
+}
+
+function PreviewCard({ body, title }: { body: string; title: string }) {
+  return (
+    <div className="mt-8 rounded-2xl border border-slate-700 bg-slate-950/50 p-5">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</div>
+      <div className="mt-2 text-lg font-semibold text-slate-100">{title}</div>
+      <div className="mt-1 break-all text-sm leading-6 text-slate-400">{body}</div>
+    </div>
+  );
+}
+
+function SummaryRow({ helper, label, value }: { helper?: string; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-700 bg-slate-950/50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1 break-words text-base font-semibold text-slate-100">{value}</div>
+      {helper && <div className="mt-1 break-all text-xs leading-5 text-slate-500">{helper}</div>}
     </div>
   );
 }
