@@ -16,6 +16,11 @@ export function AuthScreen() {
   const [submitting, setSubmitting] = useState(false);
   const setAuth = useAuth((s) => s.setAuth);
 
+  function completeAuth(token: string, email?: string) {
+    setAuth(token, email);
+    window.history.replaceState({}, '', '/requests');
+  }
+
   function authErrorMessage(error: any) {
     const message = String(error?.response?.data?.message ?? '');
     if (message.includes('well-formed email') || message.includes('registerRequest.email')) {
@@ -56,7 +61,7 @@ export function AuthScreen() {
       setSubmitting(true);
       try {
         const { data } = await api.post('/auth/register/verify', { email: pendingEmail.trim().toLowerCase(), otp });
-        setAuth(data.token, data.email);
+        completeAuth(data.token, data.email);
       } catch (e: any) {
         setError(authErrorMessage(e));
       } finally {
@@ -86,7 +91,7 @@ export function AuthScreen() {
         setOtp('');
         setNotice(data.message ?? 'Verification code sent to your email.');
       } else {
-        setAuth(data.token, data.email);
+        completeAuth(data.token, data.email);
       }
     } catch (e: any) {
       setError(authErrorMessage(e));

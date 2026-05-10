@@ -11,6 +11,7 @@ import {
   useExecute,
   useExecutions,
   useInviteUser,
+  usePublicExecute,
   useRequests,
   useSchedules,
   useToggleSchedule,
@@ -32,6 +33,7 @@ import { SettingsPage } from './SettingsPage';
 import { Sidebar } from './Sidebar';
 import type { AppPage, BuilderTab, RequestDraft } from './dashboardTypes';
 import { emptyRequestDraft } from './dashboardTypes';
+import { createGuestRequest, persistGuestCollections, persistGuestRequests, readGuestCollections, readGuestRequests } from './guestWorkspace';
 
 const pageRoutes: Record<AppPage, string> = {
   requests: '/requests',
@@ -41,8 +43,10 @@ const pageRoutes: Record<AppPage, string> = {
 };
 
 export function Dashboard() {
+  const token = useAuth((state) => state.token);
   const logout = useAuth((state) => state.logout);
   const email = useAuth((state) => state.email);
+  const isAuthenticated = Boolean(token);
   const [activePage, setActivePageState] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [activeWorkspace, setActiveWorkspace] = useState<string>();
   const [builderTab, setBuilderTab] = useState<BuilderTab>('params');
@@ -59,8 +63,11 @@ export function Dashboard() {
   const [selectedRequestId, setSelectedRequestId] = useState<string>();
   const [draft, setDraft] = useState<RequestDraft>(emptyRequestDraft());
   const [mobilePane, setMobilePane] = useState<'collections' | 'request'>('collections');
+  const [authPrompt, setAuthPrompt] = useState('');
+  const [guestCollections, setGuestCollections] = useState<Collection[]>(() => readGuestCollections());
+  const [guestRequests, setGuestRequests] = useState<ApiRequest[]>(() => readGuestRequests());
 
-  const workspaces = useWorkspaces();
+  const workspaces = useWorkspaces(isAuthenticated);
   const workspaceId = activeWorkspace ?? workspaces.data?.[0]?.id;
   const collections = useCollections(workspaceId);
   const requests = useRequests(workspaceId);
@@ -75,10 +82,12 @@ export function Dashboard() {
   const toggleScheduleMutation = useToggleSchedule(workspaceId);
   const deleteSchedule = useDeleteSchedule(workspaceId);
   const execute = useExecute(workspaceId);
+  const publicExecute = usePublicExecute();
   const inviteUser = useInviteUser(workspaceId);
 
-  const requestList = requests.data ?? [];
-  const collectionList = collections.data ?? [];
+  const requestList = isAuthenticated ? requests.data ?? [] : guestRequests;
+  const collectionList = isAuthenticated ? collections.data ?? [] : guestCollections;
+  const workspaceOptions = isAuthenticated ? workspaces.data ?? [] : [{ id: 'guest', name: 'Guest Workspace', role: 'MEMBER' as const }];
   const selectedRequest = requestList.find((request) => request.id === selectedRequestId);
   const lastExecution = liveExecution ?? executions.data?.find((execution) => execution.apiRequestId === selectedRequestId);
 
@@ -94,7 +103,19 @@ export function Dashboard() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  useEffect(() => {
+    if (isAuthenticated || activePage === 'requests') return;
+    setAuthPrompt(protectedFeatureMessage(activePage));
+    navigate('requests', true);
+  }, [activePage, isAuthenticated]);
+
   function navigate(page: AppPage, replace = false) {
+    if (!isAuthenticated && page !== 'requests') {
+      setAuthPrompt(protectedFeatureMessage(page));
+      setActivePageState('requests');
+      if (window.location.pathname !== pageRoutes.requests) window.history.pushState({ page: 'requests' }, '', pageRoutes.requests);
+      return;
+    }
     setActivePageState(page);
     const nextPath = pageRoutes[page];
     if (window.location.pathname === nextPath) return;
@@ -112,6 +133,12 @@ export function Dashboard() {
     if (activePage !== 'requests' || selectedRequestId || visibleRequests.length === 0) return;
     openRequest(visibleRequests[0].id);
   }, [activePage, visibleRequests.length, selectedRequestId]);
+
+  useEffect(() => {
+    if (requestList.length > 0 || isAuthenticated) return;
+    const starter = createGuestRequest({ ...toPayloadFromDraft(emptyRequestDraft(), parseJson), name: 'Example Request' });
+    setGuestRequests(persistGuestRequests([starter]));
+  }, [isAuthenticated, requestList.length]);
 
   function parseJson(value: string) {
     try {
@@ -141,6 +168,12 @@ export function Dashboard() {
 
   async function saveRequest() {
     const payload = toPayload();
+    if (!isAuthenticated) {
+      const saved = saveGuestRequest(payload);
+      openRequest(saved.id);
+      setDraft(fromRequest(saved));
+      return saved;
+    }
     const saved = draft.id
       ? await updateRequest.mutateAsync({ id: draft.id, payload })
       : await createRequest.mutateAsync(payload);
@@ -152,12 +185,25 @@ export function Dashboard() {
   async function sendRequest() {
     setLiveExecution(undefined);
     const saved = await saveRequest();
-    const result = await execute.mutateAsync(saved.id);
+    const result = isAuthenticated
+      ? await execute.mutateAsync(saved.id)
+      : await publicExecute.mutateAsync({ ...toPayload(), name: saved.name });
     setLiveExecution(result);
   }
 
   async function createCollectionFromModal() {
     if (!collectionName.trim()) return;
+    if (!isAuthenticated) {
+      const collection = { id: crypto.randomUUID(), name: collectionName.trim() };
+      const next = [collection, ...guestCollections];
+      setGuestCollections(next);
+      persistGuestCollections(next);
+      setCollectionName('');
+      setCollectionModalOpen(false);
+      setSelectedCollectionId(collection.id);
+      setDraft((current) => ({ ...current, collectionId: collection.id }));
+      return;
+    }
     const collection = await createCollection.mutateAsync({ name: collectionName.trim() });
     setCollectionName('');
     setCollectionModalOpen(false);
@@ -166,6 +212,10 @@ export function Dashboard() {
   }
 
   async function inviteWorkspaceUser() {
+    if (!isAuthenticated) {
+      setAuthPrompt('Sign in to invite teammates into a shared workspace.');
+      return;
+    }
     if (!inviteEmail.trim()) return;
     await inviteUser.mutateAsync({ email: inviteEmail.trim(), role: 'MEMBER' });
     setInviteEmail('');
@@ -178,6 +228,25 @@ export function Dashboard() {
     const payload = JSON.parse(raw);
     const importedCollections = Array.isArray(payload.collections) ? payload.collections : [];
     for (const item of importedCollections) {
+      if (!isAuthenticated) {
+        const collection: Collection = { id: crypto.randomUUID(), name: item.name ?? 'Imported Collection', description: item.description };
+        const importedRequests = Array.isArray(item.requests) ? item.requests : [];
+        const localRequests = importedRequests.map((request: any) => ({
+          id: crypto.randomUUID(),
+          collectionId: collection.id,
+          name: request.name ?? 'Imported Request',
+          method: request.method ?? 'GET',
+          url: request.url,
+          headers: request.headers ?? {},
+          queryParams: request.queryParams ?? {},
+          bodyType: request.bodyType ?? 'NONE',
+          body: request.body ?? {},
+          authType: request.authType ?? 'NONE'
+        } satisfies ApiRequest));
+        setGuestCollections((current) => persistGuestCollections([collection, ...current]));
+        setGuestRequests((current) => persistGuestRequests([...localRequests, ...current]));
+        continue;
+      }
       const collection = await createCollection.mutateAsync({ name: item.name ?? 'Imported Collection', description: item.description });
       const importedRequests = Array.isArray(item.requests) ? item.requests : [];
       for (const request of importedRequests) {
@@ -205,6 +274,14 @@ export function Dashboard() {
       ...toPayloadFromDraft(emptyRequestDraft(collectionId), parseJson),
       name: `New Request ${requestList.length + 1}`
     };
+    if (!isAuthenticated) {
+      const saved = saveGuestRequest(payload);
+      openRequest(saved.id);
+      setDraft(fromRequest(saved));
+      setMobilePane('request');
+      setToast('New request created locally');
+      return;
+    }
     const saved = await createRequest.mutateAsync(payload);
     openRequest(saved.id);
     setDraft(fromRequest(saved as ApiRequest));
@@ -229,27 +306,49 @@ export function Dashboard() {
   }
 
   function createSchedule(payload: Partial<Schedule> & { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
+    if (!isAuthenticated) {
+      setAuthPrompt('Sign in to schedule and monitor APIs.');
+      return;
+    }
     createScheduleMutation.mutate(payload);
   }
 
   async function saveSchedule(scheduleId: string | undefined, payload: Partial<Schedule> & { apiRequestId?: string; collectionId?: string; targetType?: Schedule['targetType']; name: string; scheduleType: Schedule['scheduleType']; intervalMinutes?: number; cronExpression?: string; enabled: boolean }) {
+    if (!isAuthenticated) {
+      setAuthPrompt('Sign in to schedule and monitor APIs.');
+      throw new Error('Authentication required');
+    }
     if (scheduleId) return updateSchedule.mutateAsync({ id: scheduleId, payload });
     return createScheduleMutation.mutateAsync(payload);
   }
 
   async function removeSchedule(schedule: Schedule) {
+    if (!isAuthenticated) {
+      setAuthPrompt('Sign in to manage monitors.');
+      return;
+    }
     await deleteSchedule.mutateAsync(schedule.id);
     setToast('Schedule deleted');
   }
 
   async function toggleSchedule(schedule: Schedule) {
+    if (!isAuthenticated) {
+      setAuthPrompt('Sign in to manage monitors.');
+      return;
+    }
     await toggleScheduleMutation.mutateAsync({ id: schedule.id, enabled: !schedule.enabled });
     setToast(`Schedule turned ${schedule.enabled ? 'off' : 'on'}`);
   }
 
+  function saveGuestRequest(payload: ReturnType<typeof toPayload>) {
+      const saved = createGuestRequest(payload, draft.id);
+    setGuestRequests((current) => persistGuestRequests([saved, ...current.filter((request) => request.id !== saved.id)]));
+    return saved;
+  }
+
   return (
     <main className="h-screen overflow-hidden bg-[#0c0c0c] text-slate-100">
-      <TopBar email={email} profileOpen={profileOpen} onHome={() => navigate('requests')} onInvite={() => setInviteModalOpen(true)} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => navigate('settings')} />
+      <TopBar authenticated={isAuthenticated} email={email} profileOpen={profileOpen} onHome={() => navigate('requests')} onInvite={() => isAuthenticated ? setInviteModalOpen(true) : setAuthPrompt('Sign in to invite teammates into a shared workspace.')} onLogin={() => window.location.assign('/login')} onLogout={logout} onProfile={() => setProfileOpen((open) => !open)} onSettings={() => navigate('settings')} />
       <div className="flex h-[calc(100vh-48px)] min-h-0">
         <div className="fixed bottom-4 left-1/2 z-40 grid w-[calc(100%-32px)] max-w-sm -translate-x-1/2 grid-cols-2 rounded-2xl border border-slate-800 bg-[#111827]/95 p-1 shadow-2xl shadow-black/40 backdrop-blur md:hidden">
           <button className={`rounded-xl px-3 py-2 text-sm font-semibold ${mobilePane === 'collections' ? 'bg-indigo-500 text-white' : 'text-slate-300'}`} onClick={() => setMobilePane('collections')}>Collections</button>
@@ -264,8 +363,8 @@ export function Dashboard() {
           selectedCollectionId={selectedCollectionId}
           selectedRequestId={selectedRequestId}
           userEmail={email}
-          workspaceId={workspaceId}
-          workspaces={workspaces.data ?? []}
+          workspaceId={workspaceId ?? 'guest'}
+          workspaces={workspaceOptions}
           onCreateCollection={() => setCollectionModalOpen(true)}
           onImport={importCollection}
           onLogout={logout}
@@ -299,7 +398,7 @@ export function Dashboard() {
                     certificates={certificates.data ?? []}
                     collections={collectionList}
                     draft={draft}
-                    isSending={execute.isPending || createRequest.isPending || updateRequest.isPending}
+                    isSending={execute.isPending || publicExecute.isPending || createRequest.isPending || updateRequest.isPending}
                     onDraft={setDraft}
                     onSave={saveRequest}
                     onSend={sendRequest}
@@ -358,13 +457,14 @@ export function Dashboard() {
           </div>
         </div>
       )}
+      {authPrompt && <AuthRequiredModal message={authPrompt} onClose={() => setAuthPrompt('')} />}
       {toast && <div className="fixed bottom-5 right-5 rounded bg-[#111827] px-4 py-3 text-sm text-white shadow-lg" onAnimationEnd={() => setToast('')}>{toast}</div>}
     </main>
   );
 }
 
-function TopBar({ email, profileOpen, onHome, onInvite, onLogout, onProfile, onSettings }: { email?: string | null; profileOpen: boolean; onHome: () => void; onInvite: () => void; onLogout: () => void; onProfile: () => void; onSettings: () => void }) {
-  const displayEmail = email ?? 'user@apiautopsy.com';
+function TopBar({ authenticated, email, profileOpen, onHome, onInvite, onLogin, onLogout, onProfile, onSettings }: { authenticated: boolean; email?: string | null; profileOpen: boolean; onHome: () => void; onInvite: () => void; onLogin: () => void; onLogout: () => void; onProfile: () => void; onSettings: () => void }) {
+  const displayEmail = email ?? 'guest@apiautopsy.com';
   const displayName = displayEmail.split('@')[0].replace(/[._-]+/g, ' ');
   return (
     <header className="flex h-12 min-w-0 items-center border-b border-slate-800 bg-[#111827] px-3 text-slate-100 shadow-lg shadow-black/20">
@@ -384,11 +484,11 @@ function TopBar({ email, profileOpen, onHome, onInvite, onLogout, onProfile, onS
         </div>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <button className="hidden h-8 items-center gap-1 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white transition hover:bg-indigo-400 sm:flex" onClick={onInvite}><UserPlus size={15} />Invite</button>
+        {authenticated ? <button className="hidden h-8 items-center gap-1 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white transition hover:bg-indigo-400 sm:flex" onClick={onInvite}><UserPlus size={15} />Invite</button> : <button className="hidden h-8 items-center gap-1 rounded-xl bg-indigo-500 px-3 text-sm font-semibold text-white transition hover:bg-indigo-400 sm:flex" onClick={onLogin}>Sign in</button>}
         <button className="text-slate-400 transition hover:text-slate-100" onClick={onSettings}><Settings size={19} /></button>
         <button className="hidden text-slate-400 transition hover:text-slate-100 sm:block"><Bell size={18} /></button>
         <div className="relative">
-          <button className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white ring-2 ring-teal-400/20 transition hover:ring-teal-300/50" onClick={onProfile}>{displayEmail.slice(0, 1).toUpperCase()}</button>
+          <button className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-600 text-sm font-bold text-white ring-2 ring-teal-400/20 transition hover:ring-teal-300/50" onClick={authenticated ? onProfile : onLogin}>{authenticated ? displayEmail.slice(0, 1).toUpperCase() : 'G'}</button>
           {profileOpen && (
             <div className="absolute right-0 top-10 z-50 w-64 rounded-2xl border border-slate-800 bg-[#111827] p-3 shadow-2xl shadow-black/40">
               <div className="px-2 py-2">
@@ -426,6 +526,22 @@ function RequestHeader({ collection, draft, onCopy, onSave }: { collection?: Col
         </select>
         <button className="h-10 rounded-xl border border-slate-700 px-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900" onClick={onSave}>Save</button>
         <button className="flex h-10 items-center gap-2 rounded-xl border border-slate-700 px-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-900" onClick={onCopy}>Share <Copy size={15} /></button>
+      </div>
+    </div>
+  );
+}
+
+function AuthRequiredModal({ message, onClose }: { message: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-2xl shadow-black/40">
+        <div className="text-lg font-semibold text-white">Sign in required</div>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{message}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">You can keep creating collections and sending one-off API requests without an account.</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Keep testing</Button>
+          <Button variant="primary" onClick={() => window.location.assign('/login')}>Sign in</Button>
+        </div>
       </div>
     </div>
   );
@@ -622,4 +738,11 @@ function inferBodyMode(request: ApiRequest) {
   if (request.bodyType === 'FORM_DATA') return 'form-data' as const;
   if (contentType.includes('x-www-form-urlencoded')) return 'x-www-form-urlencoded' as const;
   return 'raw' as const;
+}
+
+function protectedFeatureMessage(page: AppPage) {
+  if (page === 'scheduler') return 'Sign in to schedule API checks, monitor uptime, send alerts, and publish status pages.';
+  if (page === 'flows') return 'Sign in to save and run workflow-based API monitoring.';
+  if (page === 'settings') return 'Sign in to manage workspace settings, certificates, environments, and API secrets.';
+  return 'Sign in to use this workspace feature.';
 }

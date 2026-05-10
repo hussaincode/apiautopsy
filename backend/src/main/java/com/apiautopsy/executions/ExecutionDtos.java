@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public class ExecutionDtos {
+    public record PublicExecutionRequest(String name, String method, String url, Map<String, Object> headers, Map<String, Object> queryParams, String bodyType, Map<String, Object> body, String authType, Map<String, Object> auth) {}
     public record ExecutionResponse(UUID id, UUID apiRequestId, UUID scheduleId, Integer statusCode, boolean success, long responseTimeMs, Map<String, Object> responseHeaders, String responseBody, String errorMessage, Instant executedAt, long responseSizeBytes, boolean assertionPassed, Object assertionResults) {}
     public record ReportResponse(long total, long success, double successRate, double errorRate, double avgLatencyMs) {}
 }

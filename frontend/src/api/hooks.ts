@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, Execution, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
-export function useWorkspaces() {
-  return useQuery({ queryKey: ['workspaces'], queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
+export function useWorkspaces(enabled = true) {
+  return useQuery({ queryKey: ['workspaces'], enabled, queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
 }
 
 export function useCollections(workspaceId?: string) {
@@ -64,6 +64,12 @@ export function useExecute(workspaceId?: string) {
       qc.invalidateQueries({ queryKey: ['executions', workspaceId] });
       qc.invalidateQueries({ queryKey: ['report', workspaceId] });
     }
+  });
+}
+
+export function usePublicExecute() {
+  return useMutation({
+    mutationFn: async (payload: Partial<ApiRequest> & { auth?: Record<string, unknown> }) => (await api.post<Execution>('/public/execute', payload)).data
   });
 }
 

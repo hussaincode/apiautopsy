@@ -20,5 +20,7 @@ export default function App() {
   const statusMatch = window.location.pathname.match(/^\/status\/([a-z0-9-]+)$/);
   if (statusMatch) return <PublicStatusPage slug={statusMatch[1]} />;
 
-  return token ? <Dashboard /> : <AuthScreen />;
+  if (window.location.pathname === '/login') return token ? <Dashboard /> : <AuthScreen />;
+
+  return <Dashboard />;
 }

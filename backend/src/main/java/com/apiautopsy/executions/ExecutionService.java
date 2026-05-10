@@ -7,6 +7,7 @@ import com.apiautopsy.requests.ApiRequest;
 import com.apiautopsy.requests.ApiRequestRepository;
 import com.apiautopsy.requests.AuthType;
 import com.apiautopsy.requests.BodyType;
+import com.apiautopsy.requests.HttpMethodType;
 import com.apiautopsy.schedules.Schedule;
 import com.apiautopsy.security.CryptoService;
 import com.apiautopsy.workspaces.WorkspaceService;
@@ -60,6 +61,27 @@ public class ExecutionService {
         return toResponse(executeInternal(request, null));
     }
 
+    public ExecutionDtos.ExecutionResponse executePublic(ExecutionDtos.PublicExecutionRequest dto) {
+        ApiRequest request = new ApiRequest();
+        request.id = UUID.randomUUID();
+        request.name = blank(dto.name()) ? "Untitled Request" : dto.name().trim();
+        request.method = parseEnum(HttpMethodType.class, dto.method(), HttpMethodType.GET);
+        request.url = blank(dto.url()) ? "" : dto.url().trim();
+        request.headers = copy(dto.headers());
+        request.queryParams = copy(dto.queryParams());
+        request.bodyType = parseEnum(BodyType.class, dto.bodyType(), BodyType.NONE);
+        request.body = copy(dto.body());
+        request.authType = parseEnum(AuthType.class, dto.authType(), AuthType.NONE);
+        if (request.authType != AuthType.NONE && dto.auth() != null && !dto.auth().isEmpty()) {
+            try {
+                request.authEncrypted = crypto.encrypt(MAPPER.writeValueAsString(dto.auth()));
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid auth payload");
+            }
+        }
+        return toResponse(executeTransient(request));
+    }
+
     @Transactional
     public Execution executeScheduled(ApiRequest request, Schedule schedule) {
         return executeInternal(request, schedule);
@@ -86,6 +108,18 @@ public class ExecutionService {
     }
 
     private Execution executeInternal(ApiRequest request, Schedule schedule) {
+        Execution execution = performRequest(request, schedule);
+        executions.save(execution);
+        return execution;
+    }
+
+    private Execution executeTransient(ApiRequest request) {
+        Execution execution = performRequest(request, null);
+        if (execution.id == null) execution.id = UUID.randomUUID();
+        return execution;
+    }
+
+    private Execution performRequest(ApiRequest request, Schedule schedule) {
         Execution execution = new Execution();
         execution.workspace = request.workspace;
         execution.apiRequest = request;
@@ -119,7 +153,6 @@ public class ExecutionService {
         }
         execution.responseTimeMs = Duration.between(started, Instant.now()).toMillis();
         applyAssertions(schedule, execution);
-        executions.save(execution);
         return execution;
     }
 
@@ -237,6 +270,23 @@ public class ExecutionService {
 
     private ExecutionDtos.ExecutionResponse toResponse(Execution e) {
         return new ExecutionDtos.ExecutionResponse(e.id, e.apiRequest.id, e.schedule == null ? null : e.schedule.id, e.statusCode, e.success, e.responseTimeMs, e.responseHeaders, e.responseBody, e.errorMessage, e.executedAt, e.responseSizeBytes, e.assertionPassed, e.assertionResults);
+    }
+
+    private Map<String, Object> copy(Map<String, Object> source) {
+        return source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
+    }
+
+    private boolean blank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private <T extends Enum<T>> T parseEnum(Class<T> type, String value, T fallback) {
+        if (blank(value)) return fallback;
+        try {
+            return Enum.valueOf(type, value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Unsupported " + type.getSimpleName());
+        }
     }
 
     private Object[] flattenAggregate(Object[] row) {
