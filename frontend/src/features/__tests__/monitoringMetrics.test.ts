@@ -71,6 +71,7 @@ describe('monitoring metrics', () => {
     expect(rows[0].availability).toBeCloseTo(66.67, 1);
     expect(rows[0].slowPercent).toBeCloseTo(33.33, 1);
     expect(rows[0].latestState).toBe('fail');
+    expect(rows[0].hourlyResults[0]).toMatchObject({ latencyMs: 200, state: 'pass', statusCode: 200 });
     expect(rows[0].request?.name).toBe('Health check');
   });
 

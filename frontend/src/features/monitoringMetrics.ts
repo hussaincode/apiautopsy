@@ -9,15 +9,22 @@ export type MonitorRow = {
   dailyStatus: Array<{ date: string; state: MonitorResultState }>;
   executions: Execution[];
   failedRuns: number;
-  hourlyResults: MonitorResultState[];
+  hourlyResults: MonitorResultPoint[];
   latestState: MonitorResultState;
   p95LatencyMs: number;
   qualityScore: number;
-  recentResults: MonitorResultState[];
+  recentResults: MonitorResultPoint[];
   request?: ApiRequest;
   schedule: Schedule;
   slowPercent: number;
   totalRuns: number;
+};
+
+export type MonitorResultPoint = {
+  executedAt?: string;
+  latencyMs?: number;
+  state: MonitorResultState;
+  statusCode?: number;
 };
 
 export type MonitorFilters = {
@@ -56,11 +63,11 @@ export function buildMonitorRows(schedules: Schedule[], executions: Execution[],
       dailyStatus: buildDailyStatus(relatedExecutions, schedule.sloLatencyP95Ms),
       executions: relatedExecutions,
       failedRuns,
-      hourlyResults: relatedExecutions.slice(0, 24).reverse().map((execution) => toResultState(execution, schedule.sloLatencyP95Ms)),
+      hourlyResults: relatedExecutions.slice(0, 24).reverse().map((execution) => toResultPoint(execution, schedule.sloLatencyP95Ms)),
       latestState,
       p95LatencyMs,
       qualityScore,
-      recentResults: relatedExecutions.slice(0, 5).reverse().map((execution) => toResultState(execution, schedule.sloLatencyP95Ms)),
+      recentResults: relatedExecutions.slice(0, 5).reverse().map((execution) => toResultPoint(execution, schedule.sloLatencyP95Ms)),
       request,
       schedule,
       slowPercent,
@@ -74,6 +81,15 @@ export function toResultState(execution: Execution | undefined, slowThresholdMs:
   if (!execution.success) return 'fail';
   if (execution.responseTimeMs > slowThresholdMs) return 'slow';
   return 'pass';
+}
+
+export function toResultPoint(execution: Execution | undefined, slowThresholdMs: number): MonitorResultPoint {
+  return {
+    executedAt: execution?.executedAt,
+    latencyMs: execution?.responseTimeMs,
+    state: toResultState(execution, slowThresholdMs),
+    statusCode: execution?.statusCode
+  };
 }
 
 export function calculateQualityScore(availability: number, slowPercent: number, p95LatencyMs: number, latencyTargetMs: number) {

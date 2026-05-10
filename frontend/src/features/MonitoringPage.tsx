@@ -2,7 +2,7 @@ import { Activity, BarChart3, CheckCircle2, ExternalLink, Filter, Timer, XCircle
 import { useMemo, useState } from 'react';
 import { EmptyState } from '../components/ui';
 import type { ApiRequest, Collection, Execution, Schedule } from '../types/domain';
-import { buildMonitorRows, filterMonitorRows, type MonitorFilters, type MonitorResultState, type MonitorRow } from './monitoringMetrics';
+import { buildMonitorRows, filterMonitorRows, type MonitorFilters, type MonitorResultPoint, type MonitorResultState, type MonitorRow } from './monitoringMetrics';
 
 const defaultFilters: MonitorFilters = {
   maxLatencyMs: '',
@@ -15,7 +15,7 @@ const defaultFilters: MonitorFilters = {
 export function MonitoringPage({ collections, executions, requests, schedules, onOpenScheduler }: { collections: Collection[]; executions: Execution[]; requests: ApiRequest[]; schedules: Schedule[]; onOpenScheduler: () => void }) {
   const rows = useMemo(() => buildMonitorRows(schedules, executions, requests, collections), [collections, executions, requests, schedules]);
   const [selectedId, setSelectedId] = useState<string>();
-  const [filtersVisible, setFiltersVisible] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<MonitorFilters>(defaultFilters);
   const filteredRows = useMemo(() => filterMonitorRows(rows, filters), [filters, rows]);
   const selected = filteredRows.find((row) => row.schedule.id === selectedId) ?? filteredRows[0] ?? rows[0];
@@ -28,10 +28,11 @@ export function MonitoringPage({ collections, executions, requests, schedules, o
           <h1 className="mt-1 text-2xl font-bold">Monitors in schedules</h1>
           <p className="mt-1 text-sm text-slate-400">Track pass/fail, availability, slow checks, and latency from real scheduled API executions.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-sky-400" onClick={() => setFiltersVisible((visible) => !visible)}>
-            <Filter size={16} />{filtersVisible ? 'Hide filters' : 'Show filters'}
+        <div className="relative flex flex-wrap gap-2">
+          <button className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-sky-400" onClick={() => setFiltersOpen((open) => !open)}>
+            <Filter size={16} />Filter
           </button>
+          {filtersOpen && <MonitorFilterDropdown filters={filters} onChange={setFilters} onClose={() => setFiltersOpen(false)} onReset={() => setFilters(defaultFilters)} />}
         </div>
       </div>
 
@@ -50,7 +51,6 @@ export function MonitoringPage({ collections, executions, requests, schedules, o
                 <span>Health metrics</span>
               </div>
             </div>
-            {filtersVisible && <MonitorFiltersPanel filters={filters} onChange={setFilters} onReset={() => setFilters(defaultFilters)} />}
             <div className="divide-y divide-slate-800">
               {filteredRows.map((row) => (
                 <MonitorTableRow key={row.schedule.id} active={selected?.schedule.id === row.schedule.id} row={row} onClick={() => setSelectedId(row.schedule.id)} />
@@ -127,8 +127,13 @@ function MonitorDetail({ row }: { row?: MonitorRow }) {
         <Panel title="Daily status">
           <div className="flex flex-wrap gap-2">
             {row.dailyStatus.map((day) => (
-              <div key={day.date} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-xs font-semibold ${stateClass(day.state)}`} title={`${day.date}: ${day.state}`}>
+              <div key={day.date} className="group relative">
+                <div className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-xs font-semibold transition group-hover:-translate-y-0.5 ${stateClass(day.state)}`}>
                 <span>{formatDay(day.date)}</span>
+                </div>
+                <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-max max-w-[240px] -translate-x-1/2 rounded-lg bg-slate-950 px-3 py-2 text-center text-[11px] font-semibold leading-4 text-slate-100 shadow-xl shadow-black/50 group-hover:block">
+                  {day.date}. {dailyTooltip(day.state)}
+                </span>
               </div>
             ))}
           </div>
@@ -161,20 +166,27 @@ function MonitorDetail({ row }: { row?: MonitorRow }) {
   );
 }
 
-function MonitorFiltersPanel({ filters, onChange, onReset }: { filters: MonitorFilters; onChange: (filters: MonitorFilters) => void; onReset: () => void }) {
+function MonitorFilterDropdown({ filters, onChange, onClose, onReset }: { filters: MonitorFilters; onChange: (filters: MonitorFilters) => void; onClose: () => void; onReset: () => void }) {
   function update(key: keyof MonitorFilters, value: string) {
     onChange({ ...filters, [key]: value });
   }
 
   return (
-    <div className="border-b border-slate-800 bg-slate-900/60 p-4">
-      <div className="grid gap-3 md:grid-cols-2 min-[1500px]:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_auto]">
+    <div className="absolute right-0 top-12 z-30 w-[min(92vw,390px)] rounded-2xl border border-slate-700 bg-[#111827] p-4 shadow-2xl shadow-black/60">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-100">Filter monitors</div>
+          <div className="text-xs text-slate-500">Use one dropdown for all monitor filters.</div>
+        </div>
+        <button className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 hover:bg-slate-900 hover:text-white" onClick={onClose}>Close</button>
+      </div>
+      <div className="grid gap-3">
         <FilterInput label="Name or URL" placeholder="Filter monitor..." value={filters.name} onChange={(value) => update('name', value)} />
         <FilterInput label="Min quality" placeholder="90" value={filters.minQuality} onChange={(value) => update('minQuality', value)} />
         <FilterInput label="Min availability" placeholder="99" value={filters.minAvailability} onChange={(value) => update('minAvailability', value)} />
         <FilterInput label="Max slow %" placeholder="5" value={filters.maxSlowPercent} onChange={(value) => update('maxSlowPercent', value)} />
         <FilterInput label="Max avg latency" placeholder="500" value={filters.maxLatencyMs} onChange={(value) => update('maxLatencyMs', value)} />
-        <button className="h-11 self-end rounded-xl border border-slate-700 px-4 text-sm font-semibold text-slate-300 transition hover:border-sky-400 hover:text-white" onClick={onReset}>Reset</button>
+        <button className="h-11 rounded-xl border border-slate-700 px-4 text-sm font-semibold text-slate-300 transition hover:border-sky-400 hover:text-white" onClick={onReset}>Reset filters</button>
       </div>
     </div>
   );
@@ -204,12 +216,17 @@ function MetricChip({ label, tone = 'normal', value }: { label: string; tone?: '
   );
 }
 
-function ResultBars({ compact = false, results }: { compact?: boolean; results: MonitorResultState[] }) {
-  const values = results.length ? results : Array.from({ length: compact ? 5 : 24 }, () => 'empty' as const);
+function ResultBars({ compact = false, results }: { compact?: boolean; results: MonitorResultPoint[] }) {
+  const values = results.length ? results : Array.from({ length: compact ? 5 : 24 }, () => ({ state: 'empty' as const }));
   return (
     <div className="flex h-9 items-end gap-1">
-      {values.map((state, index) => (
-        <span key={`${state}-${index}`} className={`w-2 rounded-sm ${barClass(state)} ${compact ? 'h-4' : 'h-7'}`} />
+      {values.map((result, index) => (
+        <span key={`${result.state}-${index}`} className="group relative inline-flex">
+          <span className={`w-2 rounded-sm transition group-hover:scale-y-110 ${barClass(result.state)} ${compact ? 'h-4' : 'h-7'}`} />
+          <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-max max-w-[220px] -translate-x-1/2 rounded-lg bg-slate-950 px-3 py-2 text-center text-[11px] font-semibold leading-4 text-slate-100 shadow-xl shadow-black/50 group-hover:block">
+            {resultTooltip(result)}
+          </span>
+        </span>
       ))}
     </div>
   );
@@ -249,6 +266,21 @@ function barClass(state: MonitorResultState) {
   if (state === 'slow') return 'bg-amber-300';
   if (state === 'fail') return 'bg-red-400';
   return 'bg-slate-700';
+}
+
+function resultTooltip(result: MonitorResultPoint) {
+  if (!result.executedAt) return 'No check ran for this slot.';
+  const status = result.state === 'pass' ? 'PASS' : result.state === 'slow' ? 'SLOW PASS' : 'FAIL';
+  const latency = result.latencyMs === undefined ? '' : ` in ${result.latencyMs} ms`;
+  const code = result.statusCode === undefined ? '' : `, HTTP ${result.statusCode}`;
+  return `${formatDateTime(result.executedAt)}. API call: ${status}${latency}${code}.`;
+}
+
+function dailyTooltip(state: MonitorResultState) {
+  if (state === 'pass') return 'There have been only passes during this day.';
+  if (state === 'slow') return 'There have been slow responses during this day.';
+  if (state === 'fail') return 'There have been failures and passes during this day.';
+  return 'No checks ran during this day.';
 }
 
 function stateClass(state: MonitorResultState) {
