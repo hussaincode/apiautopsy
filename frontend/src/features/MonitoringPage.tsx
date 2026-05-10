@@ -2,13 +2,23 @@ import { Activity, BarChart3, CheckCircle2, ExternalLink, Filter, Timer, XCircle
 import { useMemo, useState } from 'react';
 import { EmptyState } from '../components/ui';
 import type { ApiRequest, Collection, Execution, Schedule } from '../types/domain';
-import { buildMonitorRows, type MonitorResultState, type MonitorRow } from './monitoringMetrics';
+import { buildMonitorRows, filterMonitorRows, type MonitorFilters, type MonitorResultState, type MonitorRow } from './monitoringMetrics';
+
+const defaultFilters: MonitorFilters = {
+  maxLatencyMs: '',
+  maxSlowPercent: '',
+  minAvailability: '',
+  minQuality: '',
+  name: ''
+};
 
 export function MonitoringPage({ collections, executions, requests, schedules, onOpenScheduler }: { collections: Collection[]; executions: Execution[]; requests: ApiRequest[]; schedules: Schedule[]; onOpenScheduler: () => void }) {
   const rows = useMemo(() => buildMonitorRows(schedules, executions, requests, collections), [collections, executions, requests, schedules]);
   const [selectedId, setSelectedId] = useState<string>();
   const [filtersVisible, setFiltersVisible] = useState(true);
-  const selected = rows.find((row) => row.schedule.id === selectedId) ?? rows[0];
+  const [filters, setFilters] = useState<MonitorFilters>(defaultFilters);
+  const filteredRows = useMemo(() => filterMonitorRows(rows, filters), [filters, rows]);
+  const selected = filteredRows.find((row) => row.schedule.id === selectedId) ?? filteredRows[0] ?? rows[0];
 
   return (
     <div className="h-[calc(100vh-48px)] overflow-auto bg-[#0c0c0c] p-5 text-slate-100">
@@ -33,36 +43,21 @@ export function MonitoringPage({ collections, executions, requests, schedules, o
       ) : (
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(420px,500px)]">
           <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
-            <div className="overflow-x-auto">
-              <div className="min-w-[1120px]">
-                <div className="grid grid-cols-[44px_minmax(250px,1.2fr)_250px_120px_120px_140px_110px_130px] border-b border-slate-800 bg-slate-800/70 text-xs font-semibold uppercase tracking-wide text-sky-300">
-                  <HeaderCell />
-                  <HeaderCell>Name</HeaderCell>
-                  <HeaderCell>Hourly results</HeaderCell>
-                  <HeaderCell>Recent</HeaderCell>
-                  <HeaderCell>Quality</HeaderCell>
-                  <HeaderCell>Availability</HeaderCell>
-                  <HeaderCell>Slow %</HeaderCell>
-                  <HeaderCell>Avg latency</HeaderCell>
-                </div>
-                {filtersVisible && <div className="border-b border-slate-800 bg-slate-900/60 px-3 py-3">
-                  <div className="grid grid-cols-[44px_minmax(250px,1.2fr)_250px_120px_120px_140px_110px_130px] gap-0">
-                    <div />
-                    <FilterPill label="Filter name..." />
-                    <div />
-                    <div />
-                    <FilterPill label="Quality..." />
-                    <FilterPill label="Availability..." />
-                    <FilterPill label="Slow..." />
-                    <FilterPill label="Latency..." />
-                  </div>
-                </div>}
-                <div className="divide-y divide-slate-800">
-                  {rows.map((row) => (
-                    <MonitorTableRow key={row.schedule.id} active={selected?.schedule.id === row.schedule.id} row={row} onClick={() => setSelectedId(row.schedule.id)} />
-                  ))}
-                </div>
+            <div className="border-b border-slate-800 bg-slate-800/70 px-4 py-3">
+              <div className="grid gap-3 text-xs font-semibold uppercase tracking-wide text-sky-300 lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)_minmax(300px,0.9fr)]">
+                <span>Monitor</span>
+                <span>Hourly results</span>
+                <span>Health metrics</span>
               </div>
+            </div>
+            {filtersVisible && <MonitorFiltersPanel filters={filters} onChange={setFilters} onReset={() => setFilters(defaultFilters)} />}
+            <div className="divide-y divide-slate-800">
+              {filteredRows.map((row) => (
+                <MonitorTableRow key={row.schedule.id} active={selected?.schedule.id === row.schedule.id} row={row} onClick={() => setSelectedId(row.schedule.id)} />
+              ))}
+              {filteredRows.length === 0 && (
+                <div className="p-6 text-center text-sm text-slate-500">No monitors match these filters.</div>
+              )}
             </div>
           </section>
 
@@ -78,18 +73,27 @@ function MonitorTableRow({ active, row, onClick }: { active: boolean; row: Monit
   const subtitle = row.request ? `${row.request.method} ${row.request.url}` : row.collectionName ? 'Workflow monitor' : 'Scheduled monitor';
 
   return (
-    <button className={`grid w-full grid-cols-[44px_minmax(250px,1.2fr)_250px_120px_120px_140px_110px_130px] items-center text-left text-sm transition ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70'}`} onClick={onClick}>
-      <DataCell><ExternalLink size={16} className="text-sky-300" /></DataCell>
-      <DataCell>
-        <div className="truncate text-base font-semibold text-slate-100">{title}</div>
-        <div className="mt-1 truncate text-xs text-slate-400">{subtitle}</div>
-      </DataCell>
-      <DataCell><ResultBars results={row.hourlyResults} /></DataCell>
-      <DataCell><ResultBars results={row.recentResults} compact /></DataCell>
-      <DataCell><MetricText>{row.totalRuns ? `${row.qualityScore.toFixed(0)}%` : '-'}</MetricText></DataCell>
-      <DataCell><MetricText>{row.totalRuns ? `${row.availability.toFixed(1)}%` : '-'}</MetricText></DataCell>
-      <DataCell><MetricText tone={row.slowPercent > 0 ? 'bad' : 'normal'}>{row.totalRuns ? `${row.slowPercent.toFixed(1)}%` : '-'}</MetricText></DataCell>
-      <DataCell><MetricText>{row.totalRuns ? `${row.avgLatencyMs.toFixed(0)} ms` : '-'}</MetricText></DataCell>
+    <button className={`grid w-full gap-4 px-4 py-4 text-left text-sm transition lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)_minmax(300px,0.9fr)] ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70'}`} onClick={onClick}>
+      <div className="flex min-w-0 items-start gap-3">
+        <ExternalLink size={16} className="mt-1 shrink-0 text-sky-300" />
+        <div className="min-w-0">
+          <div className="truncate text-base font-semibold text-slate-100">{title}</div>
+          <div className="mt-1 truncate text-xs text-slate-400">{subtitle}</div>
+        </div>
+      </div>
+      <div className="min-w-0">
+        <ResultBars results={row.hourlyResults} />
+        <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
+          <span>Recent</span>
+          <ResultBars results={row.recentResults} compact />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 min-[1500px]:grid-cols-4">
+        <MetricChip label="Quality" value={row.totalRuns ? `${row.qualityScore.toFixed(0)}%` : '-'} />
+        <MetricChip label="Availability" value={row.totalRuns ? `${row.availability.toFixed(1)}%` : '-'} />
+        <MetricChip label="Slow" value={row.totalRuns ? `${row.slowPercent.toFixed(1)}%` : '-'} tone={row.slowPercent > 0 ? 'bad' : 'normal'} />
+        <MetricChip label="Avg latency" value={row.totalRuns ? `${row.avgLatencyMs.toFixed(0)} ms` : '-'} />
+      </div>
     </button>
   );
 }
@@ -157,20 +161,47 @@ function MonitorDetail({ row }: { row?: MonitorRow }) {
   );
 }
 
-function HeaderCell({ children }: { children?: React.ReactNode }) {
-  return <div className="flex min-h-14 items-end px-3 py-3">{children}</div>;
+function MonitorFiltersPanel({ filters, onChange, onReset }: { filters: MonitorFilters; onChange: (filters: MonitorFilters) => void; onReset: () => void }) {
+  function update(key: keyof MonitorFilters, value: string) {
+    onChange({ ...filters, [key]: value });
+  }
+
+  return (
+    <div className="border-b border-slate-800 bg-slate-900/60 p-4">
+      <div className="grid gap-3 md:grid-cols-2 min-[1500px]:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.8fr_auto]">
+        <FilterInput label="Name or URL" placeholder="Filter monitor..." value={filters.name} onChange={(value) => update('name', value)} />
+        <FilterInput label="Min quality" placeholder="90" value={filters.minQuality} onChange={(value) => update('minQuality', value)} />
+        <FilterInput label="Min availability" placeholder="99" value={filters.minAvailability} onChange={(value) => update('minAvailability', value)} />
+        <FilterInput label="Max slow %" placeholder="5" value={filters.maxSlowPercent} onChange={(value) => update('maxSlowPercent', value)} />
+        <FilterInput label="Max avg latency" placeholder="500" value={filters.maxLatencyMs} onChange={(value) => update('maxLatencyMs', value)} />
+        <button className="h-11 self-end rounded-xl border border-slate-700 px-4 text-sm font-semibold text-slate-300 transition hover:border-sky-400 hover:text-white" onClick={onReset}>Reset</button>
+      </div>
+    </div>
+  );
 }
 
-function DataCell({ children }: { children: React.ReactNode }) {
-  return <div className="min-w-0 px-3 py-4">{children}</div>;
+function FilterInput({ label, onChange, placeholder, value }: { label: string; onChange: (value: string) => void; placeholder: string; value: string }) {
+  return (
+    <label className="min-w-0">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        className="h-11 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 text-sm font-semibold text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-sky-400"
+        inputMode={label === 'Name or URL' ? 'text' : 'decimal'}
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
 }
 
-function MetricText({ children, tone = 'normal' }: { children: React.ReactNode; tone?: 'normal' | 'bad' }) {
-  return <span className={`whitespace-nowrap text-base font-semibold ${tone === 'bad' ? 'text-red-300' : 'text-slate-100'}`}>{children}</span>;
-}
-
-function FilterPill({ label }: { label: string }) {
-  return <div className="mx-2 truncate rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-400">{label}</div>;
+function MetricChip({ label, tone = 'normal', value }: { label: string; tone?: 'normal' | 'bad'; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mt-1 whitespace-nowrap text-sm font-bold ${tone === 'bad' ? 'text-red-300' : 'text-slate-100'}`}>{value}</div>
+    </div>
+  );
 }
 
 function ResultBars({ compact = false, results }: { compact?: boolean; results: MonitorResultState[] }) {

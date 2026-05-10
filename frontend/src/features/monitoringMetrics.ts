@@ -20,6 +20,14 @@ export type MonitorRow = {
   totalRuns: number;
 };
 
+export type MonitorFilters = {
+  maxLatencyMs: string;
+  maxSlowPercent: string;
+  minAvailability: string;
+  minQuality: string;
+  name: string;
+};
+
 export function buildMonitorRows(schedules: Schedule[], executions: Execution[], requests: ApiRequest[], collections: Collection[]): MonitorRow[] {
   const requestById = new Map(requests.map((request) => [request.id, request]));
   const collectionById = new Map(collections.map((collection) => [collection.id, collection]));
@@ -74,6 +82,30 @@ export function calculateQualityScore(availability: number, slowPercent: number,
   return Math.max(0, Math.min(100, availability - slowPercent * 0.35 - latencyPenalty));
 }
 
+export function filterMonitorRows(rows: MonitorRow[], filters: MonitorFilters) {
+  const name = filters.name.trim().toLowerCase();
+  const minQuality = parseOptionalNumber(filters.minQuality);
+  const minAvailability = parseOptionalNumber(filters.minAvailability);
+  const maxSlowPercent = parseOptionalNumber(filters.maxSlowPercent);
+  const maxLatencyMs = parseOptionalNumber(filters.maxLatencyMs);
+
+  return rows.filter((row) => {
+    const title = `${row.schedule.name} ${row.request?.name ?? ''} ${row.request?.url ?? ''} ${row.collectionName ?? ''}`.toLowerCase();
+    if (name && !title.includes(name)) return false;
+    if (minQuality !== undefined && row.qualityScore < minQuality) return false;
+    if (minAvailability !== undefined && row.availability < minAvailability) return false;
+    if (maxSlowPercent !== undefined && row.slowPercent > maxSlowPercent) return false;
+    if (maxLatencyMs !== undefined && row.avgLatencyMs > maxLatencyMs) return false;
+    return true;
+  });
+}
+
+function parseOptionalNumber(value: string) {
+  if (!value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function buildDailyStatus(executions: Execution[], slowThresholdMs: number) {
   const today = new Date();
   return Array.from({ length: 14 }, (_, index) => {
@@ -96,4 +128,3 @@ function percentile(values: number[], percentileValue: number) {
   const index = Math.ceil((percentileValue / 100) * values.length) - 1;
   return values[Math.max(0, Math.min(index, values.length - 1))];
 }
-

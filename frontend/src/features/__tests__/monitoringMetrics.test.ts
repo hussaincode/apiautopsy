@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ApiRequest, Collection, Execution, Schedule } from '../../types/domain';
-import { buildMonitorRows, calculateQualityScore, toResultState } from '../monitoringMetrics';
+import { buildMonitorRows, calculateQualityScore, filterMonitorRows, toResultState } from '../monitoringMetrics';
 
 const request: ApiRequest = {
   id: 'request-1',
@@ -78,5 +78,20 @@ describe('monitoring metrics', () => {
     expect(calculateQualityScore(100, 0, 100, 500)).toBe(100);
     expect(calculateQualityScore(50, 100, 2000, 500)).toBeGreaterThanOrEqual(0);
     expect(calculateQualityScore(50, 100, 2000, 500)).toBeLessThanOrEqual(100);
+  });
+
+  it('filters monitor rows by name and health thresholds', () => {
+    const rows = buildMonitorRows([
+      schedule
+    ], [
+      execution('run-1', true, 200, '2026-05-11T00:00:00.000Z'),
+      execution('run-2', true, 800, '2026-05-11T00:05:00.000Z')
+    ], [request], [collection]);
+
+    expect(filterMonitorRows(rows, { name: 'health', minQuality: '', minAvailability: '', maxSlowPercent: '', maxLatencyMs: '' })).toHaveLength(1);
+    expect(filterMonitorRows(rows, { name: 'missing', minQuality: '', minAvailability: '', maxSlowPercent: '', maxLatencyMs: '' })).toHaveLength(0);
+    expect(filterMonitorRows(rows, { name: '', minQuality: '101', minAvailability: '', maxSlowPercent: '', maxLatencyMs: '' })).toHaveLength(0);
+    expect(filterMonitorRows(rows, { name: '', minQuality: '', minAvailability: '', maxSlowPercent: '0', maxLatencyMs: '' })).toHaveLength(0);
+    expect(filterMonitorRows(rows, { name: '', minQuality: '', minAvailability: '', maxSlowPercent: '', maxLatencyMs: '1000' })).toHaveLength(1);
   });
 });
