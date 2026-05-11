@@ -42,10 +42,10 @@ export function MonitoringPage({ collections, executions, requests, schedules, o
           <button className="mt-4 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400" onClick={onOpenScheduler}>Create schedule</button>
         </div>
       ) : (
-        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(420px,500px)]">
-          <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(720px,1fr)_minmax(420px,480px)]">
+          <section className="relative z-10 min-w-0 overflow-visible rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
             <div className="border-b border-slate-800 bg-slate-800/70 px-4 py-3">
-              <div className="grid gap-3 text-xs font-semibold uppercase tracking-wide text-sky-300 lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)_minmax(300px,0.9fr)]">
+              <div className="grid gap-3 text-xs font-semibold uppercase tracking-wide text-sky-300 lg:grid-cols-[minmax(220px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.75fr)]">
                 <span>Monitor</span>
                 <span>Hourly results</span>
                 <span>Health metrics</span>
@@ -73,7 +73,7 @@ function MonitorTableRow({ active, row, onClick }: { active: boolean; row: Monit
   const subtitle = row.request ? `${row.request.method} ${row.request.url}` : row.collectionName ? 'Workflow monitor' : 'Scheduled monitor';
 
   return (
-    <button className={`grid w-full gap-4 px-4 py-4 text-left text-sm transition lg:grid-cols-[minmax(220px,1fr)_minmax(260px,1fr)_minmax(300px,0.9fr)] ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70'}`} onClick={onClick}>
+    <button className={`grid w-full gap-4 px-4 py-4 text-left text-sm transition lg:grid-cols-[minmax(220px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.75fr)] ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70'}`} onClick={onClick}>
       <div className="flex min-w-0 items-start gap-3">
         <ExternalLink size={16} className="mt-1 shrink-0 text-sky-300" />
         <div className="min-w-0">
@@ -126,12 +126,12 @@ function MonitorDetail({ row }: { row?: MonitorRow }) {
       <div className="space-y-5 p-5 pt-0">
         <Panel title="Daily status">
           <div className="flex flex-wrap gap-2">
-            {row.dailyStatus.map((day) => (
+            {row.dailyStatus.map((day, index) => (
               <div key={day.date} className="group relative">
                 <div className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-xs font-semibold transition group-hover:-translate-y-0.5 ${stateClass(day.state)}`}>
                 <span>{formatDay(day.date)}</span>
                 </div>
-                <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-max max-w-[240px] -translate-x-1/2 rounded-lg bg-slate-950 px-3 py-2 text-center text-[11px] font-semibold leading-4 text-slate-100 shadow-xl shadow-black/50 group-hover:block">
+                <span className={`pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[180px] max-w-[240px] rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-semibold leading-4 text-slate-100 shadow-xl shadow-black/50 group-hover:block ${tooltipPositionClass(index, row.dailyStatus.length)}`}>
                   {day.date}. {dailyTooltip(day.state)}
                 </span>
               </div>
@@ -219,17 +219,23 @@ function MetricChip({ label, tone = 'normal', value }: { label: string; tone?: '
 function ResultBars({ compact = false, results }: { compact?: boolean; results: MonitorResultPoint[] }) {
   const values = results.length ? results : Array.from({ length: compact ? 5 : 24 }, () => ({ state: 'empty' as const }));
   return (
-    <div className="flex h-9 items-end gap-1">
+    <div className="flex h-9 max-w-full items-end gap-0.5 overflow-visible">
       {values.map((result, index) => (
-        <span key={`${result.state}-${index}`} className="group relative inline-flex">
-          <span className={`w-2 rounded-sm transition group-hover:scale-y-110 ${barClass(result.state)} ${compact ? 'h-4' : 'h-7'}`} />
-          <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-max max-w-[220px] -translate-x-1/2 rounded-lg bg-slate-950 px-3 py-2 text-center text-[11px] font-semibold leading-4 text-slate-100 shadow-xl shadow-black/50 group-hover:block">
+        <span key={`${result.state}-${index}`} className="group relative inline-flex shrink-0">
+          <span className={`${compact ? 'w-2' : 'w-[7px]'} rounded-sm transition group-hover:scale-y-110 ${barClass(result.state)} ${compact ? 'h-4' : 'h-7'}`} />
+          <span className={`pointer-events-none absolute bottom-full z-30 mb-2 hidden min-w-[190px] max-w-[260px] rounded-lg bg-slate-950 px-3 py-2 text-[11px] font-semibold leading-4 text-slate-100 shadow-xl shadow-black/50 group-hover:block ${tooltipPositionClass(index, values.length)}`}>
             {resultTooltip(result)}
           </span>
         </span>
       ))}
     </div>
   );
+}
+
+function tooltipPositionClass(index: number, total: number) {
+  if (index <= 1) return 'left-0 text-left';
+  if (index >= total - 2) return 'right-0 text-right';
+  return 'left-1/2 -translate-x-1/2 text-center';
 }
 
 function MetricCard({ icon, label, tone = 'normal', value }: { icon: React.ReactNode; label: string; tone?: 'normal' | 'bad'; value: React.ReactNode }) {
