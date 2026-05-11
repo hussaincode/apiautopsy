@@ -42,10 +42,10 @@ export function MonitoringPage({ collections, executions, requests, schedules, o
           <button className="mt-4 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-400" onClick={onOpenScheduler}>Create schedule</button>
         </div>
       ) : (
-        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(720px,1fr)_minmax(420px,480px)]">
-          <section className="relative z-10 min-w-0 overflow-visible rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,480px)]">
+          <section className="relative z-10 min-w-0 overflow-hidden rounded-2xl border border-slate-800 bg-[#111827] shadow-xl shadow-black/20">
             <div className="border-b border-slate-800 bg-slate-800/70 px-4 py-3">
-              <div className="grid gap-3 text-xs font-semibold uppercase tracking-wide text-sky-300 lg:grid-cols-[minmax(220px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.75fr)]">
+              <div className="grid gap-3 text-xs font-semibold uppercase tracking-wide text-sky-300 lg:grid-cols-[minmax(210px,0.9fr)_minmax(280px,1.05fr)_minmax(220px,0.7fr)]">
                 <span>Monitor</span>
                 <span>Hourly results</span>
                 <span>Health metrics</span>
@@ -73,7 +73,7 @@ function MonitorTableRow({ active, row, onClick }: { active: boolean; row: Monit
   const subtitle = row.request ? `${row.request.method} ${row.request.url}` : row.collectionName ? 'Workflow monitor' : 'Scheduled monitor';
 
   return (
-    <button className={`grid w-full gap-4 px-4 py-4 text-left text-sm transition lg:grid-cols-[minmax(220px,0.9fr)_minmax(320px,1.15fr)_minmax(260px,0.75fr)] ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70'}`} onClick={onClick}>
+    <button className={`grid w-full min-w-0 gap-4 px-4 py-4 text-left text-sm transition lg:grid-cols-[minmax(210px,0.9fr)_minmax(280px,1.05fr)_minmax(220px,0.7fr)] ${active ? 'bg-indigo-500/10 ring-1 ring-inset ring-indigo-400/60' : 'hover:bg-slate-900/70'}`} onClick={onClick}>
       <div className="flex min-w-0 items-start gap-3">
         <ExternalLink size={16} className="mt-1 shrink-0 text-sky-300" />
         <div className="min-w-0">
@@ -88,7 +88,7 @@ function MonitorTableRow({ active, row, onClick }: { active: boolean; row: Monit
           <ResultBars results={row.recentResults} compact />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2 min-[1500px]:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-2 gap-2">
         <MetricChip label="Quality" value={row.totalRuns ? `${row.qualityScore.toFixed(0)}%` : '-'} />
         <MetricChip label="Availability" value={row.totalRuns ? `${row.availability.toFixed(1)}%` : '-'} />
         <MetricChip label="Slow" value={row.totalRuns ? `${row.slowPercent.toFixed(1)}%` : '-'} tone={row.slowPercent > 0 ? 'bad' : 'normal'} />
