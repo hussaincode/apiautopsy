@@ -5,6 +5,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/coverage/
 frontend/*.tsbuildinfo
+connectors/*/node_modules/
+connectors/*/dist/
+connectors/*/*.tsbuildinfo
 *.log
 .env
 .env.*

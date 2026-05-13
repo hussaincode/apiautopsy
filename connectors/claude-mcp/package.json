@@ -1,0 +1,29 @@
+{
+  "name": "@apiautopsy/claude-mcp",
+  "version": "0.1.0",
+  "description": "Claude MCP connector for APIAutopsy workspaces, API requests, schedules, and monitoring.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "apiautopsy-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start:remote": "node dist/src/remote.js",
+    "test": "node --test dist/test/*.test.js",
+    "pretest": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.13.0",
+    "express": "^5.2.1",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.15.29",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
