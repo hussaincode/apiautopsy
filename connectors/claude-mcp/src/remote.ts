@@ -2,6 +2,7 @@
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { Request, Response } from 'express';
+import { extractBearerToken, protectedResourceMetadata, sendMissingBearerChallenge } from './auth.js';
 import { createApiAutopsyMcpServer } from './mcpServer.js';
 
 const baseUrl = process.env.APIAUTOPSY_BASE_URL ?? 'https://api.apiautopsy.com';
@@ -19,8 +20,17 @@ app.get('/healthz', (_req: Request, res: Response) => {
   res.json({ ok: true, service: 'apiautopsy-mcp' });
 });
 
+app.get('/.well-known/oauth-protected-resource', (req: Request, res: Response) => {
+  res.json(protectedResourceMetadata(req));
+});
+
 app.post('/mcp', async (req: Request, res: Response) => {
   const token = extractBearerToken(req) ?? staticToken;
+  if (!token) {
+    sendMissingBearerChallenge(req, res);
+    return;
+  }
+
   const server = createApiAutopsyMcpServer(baseUrl, token);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined
@@ -77,13 +87,6 @@ app.listen(port, host, (error?: Error) => {
   }
   console.log(`APIAutopsy MCP remote server listening on http://${host}:${port}/mcp`);
 });
-
-function extractBearerToken(req: Request): string | undefined {
-  const authorization = req.header('authorization');
-  if (!authorization) return undefined;
-  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
-  return match?.[1];
-}
 
 function parseCsv(value?: string): string[] {
   return value?.split(',').map((entry) => entry.trim()).filter(Boolean) ?? [];

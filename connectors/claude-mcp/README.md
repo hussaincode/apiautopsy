@@ -77,6 +77,8 @@ cd connectors/claude-mcp
 npm install
 npm run build
 APIAUTOPSY_BASE_URL="https://api.apiautopsy.com" \
+APIAUTOPSY_AUTH_ISSUER="https://apiautopsy.com" \
+MCP_PUBLIC_ORIGIN="https://mcp.apiautopsy.com" \
 MCP_ALLOWED_HOSTS="mcp.apiautopsy.com" \
 PORT=3000 \
 npm run start:remote
@@ -89,6 +91,11 @@ https://mcp.apiautopsy.com/mcp
 ```
 
 The hosted server supports stateless Streamable HTTP MCP. It accepts an `Authorization: Bearer <token>` header and forwards that token to APIAutopsy so backend workspace isolation remains the source of truth.
+If a client calls `/mcp` without a token, the server returns a `401` Bearer challenge and exposes protected resource metadata at:
+
+```text
+https://mcp.apiautopsy.com/.well-known/oauth-protected-resource
+```
 
 For public usage in Claude, issue an APIAutopsy integration key:
 
