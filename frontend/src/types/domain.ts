@@ -5,6 +5,18 @@ export type ScheduleTargetType = 'REQUEST' | 'WORKFLOW';
 export interface Workspace { id: string; name: string; role: 'OWNER' | 'ADMIN' | 'MEMBER'; }
 export interface Collection { id: string; parentId?: string; name: string; description?: string; }
 export interface Certificate { id: string; name: string; }
+export interface IntegrationApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scope: 'MCP_CONNECTOR' | string;
+  createdAt: string;
+  lastUsedAt?: string;
+  revokedAt?: string;
+}
+export interface CreatedIntegrationApiKey extends IntegrationApiKey {
+  token: string;
+}
 export interface ApiRequest {
   id: string;
   collectionId?: string;

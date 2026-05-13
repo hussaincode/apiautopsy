@@ -1,5 +1,6 @@
 package com.apiautopsy.security;
 
+import com.apiautopsy.integrations.IntegrationApiKeyService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,9 +17,11 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
+    private final IntegrationApiKeyService apiKeyService;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(JwtService jwtService, IntegrationApiKeyService apiKeyService) {
         this.jwtService = jwtService;
+        this.apiKeyService = apiKeyService;
     }
 
     @Override
@@ -26,7 +29,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             try {
-                CurrentUser user = jwtService.parse(header.substring(7));
+                String token = header.substring(7);
+                CurrentUser user = token.startsWith("aat_") ? apiKeyService.authenticate(token) : jwtService.parse(token);
                 var auth = new UsernamePasswordAuthenticationToken(user, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {

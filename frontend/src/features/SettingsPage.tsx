@@ -1,7 +1,7 @@
-import { KeyRound, LockKeyhole, Upload, Users } from 'lucide-react';
+import { Check, Copy, KeyRound, LockKeyhole, PlugZap, Trash2, Upload, Users } from 'lucide-react';
 import { useState } from 'react';
-import { useCreateCertificate } from '../api/hooks';
-import { Button, FieldLabel, Input } from '../components/ui';
+import { useCreateCertificate, useCreateIntegrationApiKey, useIntegrationApiKeys, useRevokeIntegrationApiKey } from '../api/hooks';
+import { FieldLabel, Input } from '../components/ui';
 
 export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
   const createCertificate = useCreateCertificate(workspaceId);
@@ -9,6 +9,12 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
   const [certificateFile, setCertificateFile] = useState<File | null>(null);
   const [privateKeyFile, setPrivateKeyFile] = useState<File | null>(null);
   const [savedMessage, setSavedMessage] = useState('');
+  const [apiKeyName, setApiKeyName] = useState('Claude MCP Connector');
+  const [createdToken, setCreatedToken] = useState('');
+  const [copied, setCopied] = useState(false);
+  const integrationKeys = useIntegrationApiKeys();
+  const createIntegrationKey = useCreateIntegrationApiKey();
+  const revokeIntegrationKey = useRevokeIntegrationApiKey();
 
   async function saveCertificate() {
     if (!certificateName.trim() || !certificateFile) return;
@@ -18,6 +24,24 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
     if (privateKeyFile) form.append('privateKey', privateKeyFile);
     await createCertificate.mutateAsync(form);
     setSavedMessage('Certificate saved securely');
+  }
+
+  async function createApiKey() {
+    if (!apiKeyName.trim()) return;
+    const created = await createIntegrationKey.mutateAsync({ name: apiKeyName.trim() });
+    setCreatedToken(created.token);
+    setCopied(false);
+  }
+
+  async function copyCreatedToken() {
+    await navigator.clipboard.writeText(createdToken);
+    setCopied(true);
+  }
+
+  async function revokeApiKey(keyId: string) {
+    if (!window.confirm('Revoke this integration API key? Claude or MCP clients using it will stop working immediately.')) return;
+    await revokeIntegrationKey.mutateAsync(keyId);
+    if (createdToken) setCreatedToken('');
   }
 
   return (
@@ -43,8 +67,53 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-xl shadow-black/20">
-          <div className="mb-4 flex items-center gap-2 font-semibold"><KeyRound size={18} />API Keys</div>
-          <p className="text-sm leading-6 text-slate-400">API keys are managed inside each request’s Auth tab so they can be encrypted and scoped to the saved API.</p>
+          <div className="mb-4 flex items-center gap-2 font-semibold"><KeyRound size={18} />Integration API keys</div>
+          <p className="mb-4 text-sm leading-6 text-slate-400">Create keys for Claude MCP, automation clients, or APIAutopsy integrations. Keys are stored as hashes and shown only once.</p>
+
+          <FieldLabel>Key name</FieldLabel>
+          <div className="mb-3 flex gap-2">
+            <Input className="min-w-0 flex-1 rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" value={apiKeyName} onChange={(event) => setApiKeyName(event.target.value)} />
+            <button className="h-10 shrink-0 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50" disabled={createIntegrationKey.isPending || !apiKeyName.trim()} onClick={createApiKey}>
+              {createIntegrationKey.isPending ? 'Creating' : 'Create'}
+            </button>
+          </div>
+
+          {createdToken && (
+            <div className="mb-4 rounded-xl border border-teal-400/30 bg-teal-400/10 p-3">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-teal-200"><PlugZap size={16} />Copy this key now</div>
+              <p className="mb-3 text-xs leading-5 text-slate-300">Use it as <span className="font-mono text-teal-200">Authorization: Bearer</span> for hosted MCP or API integrations. It will not be shown again.</p>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 p-2">
+                <code className="min-w-0 flex-1 truncate text-xs text-slate-100">{createdToken}</code>
+                <button className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-700 px-2 text-xs font-semibold text-slate-200 hover:border-teal-300" onClick={copyCreatedToken}>
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {(integrationKeys.data ?? []).map((key) => (
+              <div key={key.id} className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-100">{key.name}</div>
+                    <div className="mt-1 font-mono text-xs text-slate-500">{key.keyPrefix}...</div>
+                  </div>
+                  {key.revokedAt ? (
+                    <span className="rounded-full bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300">Revoked</span>
+                  ) : (
+                    <button className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-400/40 px-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/10" disabled={revokeIntegrationKey.isPending} onClick={() => revokeApiKey(key.id)}>
+                      <Trash2 size={14} /> Revoke
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 text-xs text-slate-500">Created {formatDate(key.createdAt)}{key.lastUsedAt ? ` · Last used ${formatDate(key.lastUsedAt)}` : ''}</div>
+              </div>
+            ))}
+            {integrationKeys.isLoading && <p className="text-sm text-slate-500">Loading integration keys...</p>}
+            {!integrationKeys.isLoading && !(integrationKeys.data ?? []).length && <p className="rounded-xl border border-dashed border-slate-800 p-3 text-sm text-slate-500">No integration keys yet.</p>}
+          </div>
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-xl shadow-black/20">
@@ -56,6 +125,11 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
       </div>
     </div>
   );
+}
+
+function formatDate(value?: string) {
+  if (!value) return 'never';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
 function FileUpload({ accept, file, label, optional = false, onChange }: { accept: string; file: File | null; label: string; optional?: boolean; onChange: (file: File | null) => void }) {

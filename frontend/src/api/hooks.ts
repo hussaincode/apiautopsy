@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, Execution, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
+import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces(enabled = true) {
   return useQuery({ queryKey: ['workspaces'], enabled, queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -253,4 +253,42 @@ export function useCreateCertificate(workspaceId?: string) {
 
 export function useCertificates(workspaceId?: string) {
   return useQuery({ queryKey: ['certificates', workspaceId], enabled: !!workspaceId, queryFn: async () => (await api.get<Certificate[]>(`/workspaces/${workspaceId}/certificates`)).data });
+}
+
+export function useIntegrationApiKeys() {
+  return useQuery({
+    queryKey: ['integration-api-keys'],
+    queryFn: async () => (await api.get<IntegrationApiKey[]>('/integration-keys')).data
+  });
+}
+
+export function useCreateIntegrationApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { name: string }) => (await api.post<CreatedIntegrationApiKey>('/integration-keys', payload)).data,
+    onSuccess: (created) => {
+      const safeKey: IntegrationApiKey = {
+        id: created.id,
+        name: created.name,
+        keyPrefix: created.keyPrefix,
+        scope: created.scope,
+        createdAt: created.createdAt,
+        lastUsedAt: created.lastUsedAt,
+        revokedAt: created.revokedAt
+      };
+      qc.setQueryData<IntegrationApiKey[]>(['integration-api-keys'], (current) => [safeKey, ...(current ?? []).filter((item) => item.id !== created.id)]);
+      qc.invalidateQueries({ queryKey: ['integration-api-keys'] });
+    }
+  });
+}
+
+export function useRevokeIntegrationApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (keyId: string) => api.delete(`/integration-keys/${keyId}`),
+    onSuccess: (_result, keyId) => {
+      qc.setQueryData<IntegrationApiKey[]>(['integration-api-keys'], (current) => current?.map((key) => key.id === keyId ? { ...key, revokedAt: new Date().toISOString() } : key) ?? []);
+      qc.invalidateQueries({ queryKey: ['integration-api-keys'] });
+    }
+  });
 }

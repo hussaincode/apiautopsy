@@ -25,7 +25,7 @@ npm install
 npm run build
 ```
 
-Create a user token from APIAutopsy, or use a JWT for local testing.
+Create an integration API key from APIAutopsy Settings > Integration API keys, or use a JWT for local testing.
 
 ```bash
 export APIAUTOPSY_BASE_URL="https://api.apiautopsy.com"
@@ -90,19 +90,20 @@ https://mcp.apiautopsy.com/mcp
 
 The hosted server supports stateless Streamable HTTP MCP. It accepts an `Authorization: Bearer <token>` header and forwards that token to APIAutopsy so backend workspace isolation remains the source of truth.
 
-For true public usage in Claude, the next production requirement is OAuth/API-key issuance from APIAutopsy:
+For public usage in Claude, issue an APIAutopsy integration key:
 
-1. Users click “Add connector” in Claude.
-2. Claude opens APIAutopsy OAuth/login.
-3. APIAutopsy returns an access token scoped to that user.
-4. Claude sends that token to `https://mcp.apiautopsy.com/mcp`.
+1. Sign in to APIAutopsy.
+2. Open Settings > Integration API keys.
+3. Create a key named `Claude MCP Connector`.
+4. Use it as `Authorization: Bearer <integration-api-key>` against `https://mcp.apiautopsy.com/mcp`.
 
-Until OAuth is added, this remote server can be tested with manually supplied bearer tokens or with a server-side `APIAUTOPSY_TOKEN` for an internal/shared account.
+OAuth can be layered on later for a one-click Claude install flow, but API keys already keep workspace isolation and user ownership enforced by APIAutopsy.
 
 ## Security
 
 - The connector never stores tokens.
 - Local tokens are read only from environment variables.
 - Hosted requests can use bearer tokens supplied by the MCP client.
+- APIAutopsy integration keys are stored hashed, can be revoked, and are shown only once at creation.
 - Public status lookup does not require a token.
 - API calls are scoped by APIAutopsy backend authorization and workspace isolation.
