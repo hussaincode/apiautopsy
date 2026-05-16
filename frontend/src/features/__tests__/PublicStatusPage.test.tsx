@@ -25,10 +25,12 @@ describe('PublicStatusPage', () => {
   it('renders public synthetic monitor status without auth context', () => {
     render(<PublicStatusPage slug="production-health" />);
 
-    expect(screen.getByText('Production health')).toBeInTheDocument();
-    expect(screen.getByText('Operational')).toBeInTheDocument();
+    expect(screen.getAllByText('Production health').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Operational').length).toBeGreaterThan(0);
     expect(screen.getByText('Public API health page for clients and teams')).toBeInTheDocument();
     expect(screen.getByText('99.9%')).toBeInTheDocument();
     expect(screen.getByText('220 ms')).toBeInTheDocument();
+    expect(screen.getByText('Uptime over the past 90 days')).toBeInTheDocument();
+    expect(screen.getAllByText('99.90% uptime').length).toBeGreaterThan(0);
   });
 });

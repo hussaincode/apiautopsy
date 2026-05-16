@@ -59,6 +59,12 @@ export function PublicStatusPage({ slug }: { slug: string }) {
               <Metric icon={<XCircle size={17} />} label="Checks sampled" value={data.totalRuns} description="Runs included in this report." />
             </div>
 
+            <UptimeHistory
+              name={data.name}
+              recentExecutions={data.recentExecutions}
+              successRate={data.successRate}
+            />
+
             <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
               <div className="border-b border-slate-800 px-5 py-4">
                 <div className="font-semibold">Recent checks</div>
@@ -83,6 +89,50 @@ export function PublicStatusPage({ slug }: { slug: string }) {
   );
 }
 
+function UptimeHistory({ name, recentExecutions, successRate }: { name: string; recentExecutions: Array<{ executedAt: string; success: boolean }>; successRate: number }) {
+  const days = buildUptimeDays(recentExecutions);
+  const latestState = days[days.length - 1]?.state ?? 'unknown';
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-semibold text-slate-100">Uptime over the past 90 days</h3>
+          <p className="mt-1 text-sm text-slate-500">Daily health summary for this public monitor.</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${latestState === 'down' ? 'bg-red-500/15 text-red-300' : latestState === 'degraded' ? 'bg-amber-500/15 text-amber-300' : 'bg-teal-500/15 text-teal-300'}`}>
+          {latestState === 'down' ? 'Down' : latestState === 'degraded' ? 'Degraded' : 'Operational'}
+        </span>
+      </div>
+      <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate font-semibold text-slate-100">{name}</div>
+            <div className="text-xs text-slate-500">Public API</div>
+          </div>
+          <div className="text-sm font-semibold text-teal-300">{successRate.toFixed(2)}% uptime</div>
+        </div>
+        <div className="flex h-12 items-end gap-1 overflow-hidden">
+          {days.map((day) => (
+            <div
+              key={day.isoDate}
+              className={`h-10 min-w-1.5 flex-1 rounded-sm ${day.state === 'down' ? 'bg-red-400' : day.state === 'degraded' ? 'bg-amber-300' : day.state === 'unknown' ? 'bg-slate-700' : 'bg-teal-400'}`}
+              title={`${day.label}: ${day.summary}`}
+            />
+          ))}
+        </div>
+        <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+          <span>90 days ago</span>
+          <span className="h-px flex-1 bg-slate-700" />
+          <span>{successRate.toFixed(2)}% uptime</span>
+          <span className="h-px flex-1 bg-slate-700" />
+          <span>Today</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Metric({ description, icon, label, value }: { description: string; icon: React.ReactNode; label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
@@ -91,6 +141,35 @@ function Metric({ description, icon, label, value }: { description: string; icon
       <p className="mt-2 text-xs leading-5 text-slate-500">{description}</p>
     </div>
   );
+}
+
+function buildUptimeDays(recentExecutions: Array<{ executedAt: string; success: boolean }>) {
+  const byDay = new Map<string, { total: number; failed: number }>();
+  for (const execution of recentExecutions) {
+    const date = new Date(execution.executedAt);
+    if (Number.isNaN(date.getTime())) continue;
+    const key = date.toISOString().slice(0, 10);
+    const existing = byDay.get(key) ?? { total: 0, failed: 0 };
+    existing.total += 1;
+    if (!execution.success) existing.failed += 1;
+    byDay.set(key, existing);
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: 90 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (89 - index));
+    const isoDate = date.toISOString().slice(0, 10);
+    const stats = byDay.get(isoDate);
+    const state = !stats ? 'unknown' : stats.failed === 0 ? 'operational' : stats.failed === stats.total ? 'down' : 'degraded';
+    return {
+      isoDate,
+      label: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+      state,
+      summary: !stats ? 'No checks recorded' : stats.failed === 0 ? `${stats.total} checks passed` : `${stats.failed} of ${stats.total} checks failed`
+    };
+  });
 }
 
 function formatStatus(status: string) {
