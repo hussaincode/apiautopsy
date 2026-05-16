@@ -8,8 +8,8 @@ export function PublicStatusPage({ slug }: { slug: string }) {
   const latestCheck = data?.recentExecutions[0]?.executedAt;
 
   return (
-    <main className="min-h-screen bg-[#0c0c0c] px-5 py-10 text-slate-100">
-      <div className="mx-auto max-w-5xl">
+    <main className="h-screen overflow-y-auto overflow-x-hidden bg-[#0c0c0c] px-4 py-8 text-slate-100 sm:px-5 sm:py-10">
+      <div className="mx-auto max-w-5xl pb-12">
         <div className="mb-8 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-400 text-slate-950 shadow-lg shadow-teal-950/30">
             <ShieldCheck size={22} />
@@ -64,14 +64,16 @@ export function PublicStatusPage({ slug }: { slug: string }) {
                 <div className="font-semibold">Recent checks</div>
                 <p className="mt-1 text-sm text-slate-500">Each row is one scheduled API call from APIAutopsy.</p>
               </div>
-              {data.recentExecutions.map((execution) => (
-                <div key={`${execution.executedAt}-${execution.responseTimeMs}`} className="grid grid-cols-2 gap-3 border-b border-slate-800 px-5 py-3 text-sm last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_100px_100px_80px]">
-                  <div className="truncate text-slate-300">{new Date(execution.executedAt).toLocaleString()}</div>
-                  <div className={execution.success ? 'font-semibold text-teal-300' : 'font-semibold text-red-300'}>{execution.success ? 'Success' : 'Failed'}</div>
-                  <div>{execution.responseTimeMs} ms</div>
-                  <div className="text-slate-400">{execution.statusCode ?? 'N/A'}</div>
-                </div>
-              ))}
+              <div className="max-h-[46vh] overflow-y-auto">
+                {data.recentExecutions.map((execution) => (
+                  <div key={`${execution.executedAt}-${execution.responseTimeMs}`} className="grid grid-cols-2 gap-3 border-b border-slate-800 px-5 py-3 text-sm last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_100px_100px_80px]">
+                    <div className="truncate text-slate-300">{new Date(execution.executedAt).toLocaleString()}</div>
+                    <div className={execution.success ? 'font-semibold text-teal-300' : 'font-semibold text-red-300'}>{execution.success ? 'Success' : 'Failed'}</div>
+                    <div>{execution.responseTimeMs} ms</div>
+                    <div className="text-slate-400">{execution.statusCode ?? 'N/A'}</div>
+                  </div>
+                ))}
+              </div>
               {data.recentExecutions.length === 0 && <div className="px-5 py-8 text-center text-slate-500">No public checks recorded yet.</div>}
             </div>
           </section>
