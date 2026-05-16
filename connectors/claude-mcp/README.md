@@ -106,6 +106,36 @@ For public usage in Claude, issue an APIAutopsy integration key:
 
 OAuth can be layered on later for a one-click Claude install flow, but API keys already keep workspace isolation and user ownership enforced by APIAutopsy.
 
+## OAuth Authorization-Code Flow
+
+APIAutopsy also exposes the production OAuth endpoints needed for connector onboarding:
+
+```text
+GET  https://apiautopsy.com/oauth/authorize?response_type=code&client_id=claude-mcp&redirect_uri=...&scope=workspaces:read%20requests:read%20requests:execute%20schedules:read%20reports:read%20status:read&state=...&code_challenge=...&code_challenge_method=S256
+POST https://api.apiautopsy.com/api/oauth/token
+```
+
+Token exchange uses `application/x-www-form-urlencoded`:
+
+```text
+grant_type=authorization_code
+client_id=claude-mcp
+code=<returned-code>
+redirect_uri=<same-redirect-uri>
+code_verifier=<pkce-verifier>
+```
+
+The response is a scoped bearer token:
+
+```json
+{
+  "access_token": "aao_live_...",
+  "token_type": "Bearer",
+  "expires_in": 43200,
+  "scope": "workspaces:read requests:read requests:execute schedules:read reports:read status:read"
+}
+```
+
 ## Security
 
 - The connector never stores tokens.

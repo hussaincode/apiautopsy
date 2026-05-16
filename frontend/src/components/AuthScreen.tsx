@@ -18,7 +18,9 @@ export function AuthScreen() {
 
   function completeAuth(token: string, email?: string) {
     setAuth(token, email);
-    window.history.replaceState({}, '', '/requests');
+    const url = new URL(window.location.href);
+    const returnTo = url.searchParams.get('returnTo');
+    window.history.replaceState({}, '', returnTo && returnTo.startsWith('/') ? returnTo : '/requests');
   }
 
   function authErrorMessage(error: any) {

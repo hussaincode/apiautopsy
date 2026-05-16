@@ -1,6 +1,7 @@
 package com.apiautopsy.security;
 
 import com.apiautopsy.integrations.IntegrationApiKeyService;
+import com.apiautopsy.oauth.OAuthAccessTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,10 +19,12 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final IntegrationApiKeyService apiKeyService;
+    private final OAuthAccessTokenService oAuthAccessTokenService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, IntegrationApiKeyService apiKeyService) {
+    public JwtAuthenticationFilter(JwtService jwtService, IntegrationApiKeyService apiKeyService, OAuthAccessTokenService oAuthAccessTokenService) {
         this.jwtService = jwtService;
         this.apiKeyService = apiKeyService;
+        this.oAuthAccessTokenService = oAuthAccessTokenService;
     }
 
     @Override
@@ -30,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 String token = header.substring(7);
-                CurrentUser user = token.startsWith("aat_") ? apiKeyService.authenticate(token) : jwtService.parse(token);
+                CurrentUser user = parseUser(token);
                 var auth = new UsernamePasswordAuthenticationToken(user, null, List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {
@@ -38,5 +41,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+    }
+
+    private CurrentUser parseUser(String token) {
+        if (token.startsWith("aat_")) return apiKeyService.authenticate(token);
+        if (token.startsWith("aao_")) return oAuthAccessTokenService.authenticate(token);
+        return jwtService.parse(token);
     }
 }
