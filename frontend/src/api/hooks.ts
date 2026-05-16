@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
+import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, ConnectedApp, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces(enabled = true) {
   return useQuery({ queryKey: ['workspaces'], enabled, queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -289,6 +289,24 @@ export function useRevokeIntegrationApiKey() {
     onSuccess: (_result, keyId) => {
       qc.setQueryData<IntegrationApiKey[]>(['integration-api-keys'], (current) => current?.map((key) => key.id === keyId ? { ...key, revokedAt: new Date().toISOString() } : key) ?? []);
       qc.invalidateQueries({ queryKey: ['integration-api-keys'] });
+    }
+  });
+}
+
+export function useConnectedApps() {
+  return useQuery({
+    queryKey: ['connected-apps'],
+    queryFn: async () => (await api.get<ConnectedApp[]>('/oauth/connected-apps')).data
+  });
+}
+
+export function useRevokeConnectedApp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (tokenId: string) => api.delete(`/oauth/connected-apps/${tokenId}`),
+    onSuccess: (_result, tokenId) => {
+      qc.setQueryData<ConnectedApp[]>(['connected-apps'], (current) => current?.map((app) => app.tokenId === tokenId ? { ...app, revokedAt: new Date().toISOString() } : app) ?? []);
+      qc.invalidateQueries({ queryKey: ['connected-apps'] });
     }
   });
 }

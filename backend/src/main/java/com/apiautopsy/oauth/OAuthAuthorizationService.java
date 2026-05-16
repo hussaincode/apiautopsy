@@ -55,6 +55,29 @@ public class OAuthAuthorizationService {
         return new ClientPreviewResponse(client.clientId, client.name, splitScopes(scope), redirectUri);
     }
 
+    @Transactional(readOnly = true)
+    public List<ConnectedAppResponse> connectedApps(UUID userId) {
+        return tokenRepository.findByUser_IdOrderByCreatedAtDesc(userId).stream()
+            .map(token -> new ConnectedAppResponse(
+                token.id,
+                token.client.clientId,
+                token.client.name,
+                splitScopes(token.scopes),
+                token.createdAt,
+                token.lastUsedAt,
+                token.expiresAt,
+                token.revokedAt
+            ))
+            .toList();
+    }
+
+    @Transactional
+    public void revokeConnectedApp(CurrentUser currentUser, UUID tokenId) {
+        OAuthAccessToken token = tokenRepository.findById(tokenId).orElseThrow(() -> new NotFoundException("Connected app not found"));
+        if (!token.user.id.equals(currentUser.id())) throw new ForbiddenException("Connected app belongs to another user");
+        token.revokedAt = Instant.now();
+    }
+
     @Transactional
     public AuthorizeResponse authorize(CurrentUser currentUser, AuthorizeRequest request) {
         OAuthClient client = clientRepository.findById(request.clientId()).orElseThrow(() -> new NotFoundException("OAuth client not found"));

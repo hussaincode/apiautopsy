@@ -5,6 +5,9 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.UUID;
+
 import static com.apiautopsy.oauth.OAuthDtos.*;
 
 @RestController
@@ -24,6 +27,16 @@ public class OAuthController {
     @PostMapping("/authorize")
     public AuthorizeResponse authorize(@Valid @RequestBody AuthorizeRequest request) {
         return service.authorize(SecurityUtils.currentUser(), request);
+    }
+
+    @GetMapping("/connected-apps")
+    public List<ConnectedAppResponse> connectedApps() {
+        return service.connectedApps(SecurityUtils.currentUser().id());
+    }
+
+    @DeleteMapping("/connected-apps/{tokenId}")
+    public void revokeConnectedApp(@PathVariable UUID tokenId) {
+        service.revokeConnectedApp(SecurityUtils.currentUser(), tokenId);
     }
 
     @PostMapping(value = "/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)

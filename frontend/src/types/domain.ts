@@ -17,6 +17,16 @@ export interface IntegrationApiKey {
 export interface CreatedIntegrationApiKey extends IntegrationApiKey {
   token: string;
 }
+export interface ConnectedApp {
+  tokenId: string;
+  clientId: string;
+  name: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt?: string;
+  expiresAt: string;
+  revokedAt?: string;
+}
 export interface ApiRequest {
   id: string;
   collectionId?: string;

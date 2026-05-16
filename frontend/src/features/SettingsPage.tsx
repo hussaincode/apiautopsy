@@ -1,6 +1,6 @@
-import { Check, Copy, KeyRound, LockKeyhole, PlugZap, Trash2, Upload, Users } from 'lucide-react';
+import { Check, Copy, KeyRound, LockKeyhole, PlugZap, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
 import { useState } from 'react';
-import { useCreateCertificate, useCreateIntegrationApiKey, useIntegrationApiKeys, useRevokeIntegrationApiKey } from '../api/hooks';
+import { useConnectedApps, useCreateCertificate, useCreateIntegrationApiKey, useIntegrationApiKeys, useRevokeConnectedApp, useRevokeIntegrationApiKey } from '../api/hooks';
 import { FieldLabel, Input } from '../components/ui';
 
 export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
@@ -15,6 +15,8 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
   const integrationKeys = useIntegrationApiKeys();
   const createIntegrationKey = useCreateIntegrationApiKey();
   const revokeIntegrationKey = useRevokeIntegrationApiKey();
+  const connectedApps = useConnectedApps();
+  const revokeConnectedApp = useRevokeConnectedApp();
 
   async function saveCertificate() {
     if (!certificateName.trim() || !certificateFile) return;
@@ -44,6 +46,11 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
     if (createdToken) setCreatedToken('');
   }
 
+  async function disconnectApp(tokenId: string, name: string) {
+    if (!window.confirm(`Disconnect ${name}? It will lose APIAutopsy access immediately.`)) return;
+    await revokeConnectedApp.mutateAsync(tokenId);
+  }
+
   return (
     <div className="h-[calc(100vh-48px)] overflow-auto bg-[#0c0c0c] p-6 text-slate-100">
       <div className="mb-6">
@@ -64,6 +71,46 @@ export function SettingsPage({ workspaceId }: { workspaceId?: string }) {
           <FileUpload label="Private key file" file={privateKeyFile} accept=".pem,.key" optional onChange={setPrivateKeyFile} />
           <button className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50" disabled={createCertificate.isPending || !certificateFile} onClick={saveCertificate}><Upload size={16} />{createCertificate.isPending ? 'Uploading' : 'Save certificate'}</button>
           {savedMessage && <p className="mt-3 text-sm text-teal-300">{savedMessage}</p>}
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-xl shadow-black/20 xl:col-span-2">
+          <div className="mb-4 flex items-center gap-2 font-semibold"><ShieldCheck size={18} />Connected apps</div>
+          <p className="mb-4 text-sm leading-6 text-slate-400">OAuth apps connected to your APIAutopsy account. Revoke access when a connector is no longer needed.</p>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            {(connectedApps.data ?? []).map((app) => {
+              const revoked = Boolean(app.revokedAt);
+              const expired = new Date(app.expiresAt).getTime() < Date.now();
+              return (
+                <div key={app.tokenId} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate text-sm font-semibold text-slate-100">{app.name}</h3>
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${revoked ? 'bg-red-500/10 text-red-300' : expired ? 'bg-amber-400/10 text-amber-200' : 'bg-teal-400/10 text-teal-200'}`}>
+                          {revoked ? 'Revoked' : expired ? 'Expired' : 'Connected'}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-mono text-xs text-slate-500">{app.clientId}</div>
+                    </div>
+                    {!revoked && (
+                      <button className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-red-400/40 px-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/10" disabled={revokeConnectedApp.isPending} onClick={() => disconnectApp(app.tokenId, app.name)}>
+                        <Trash2 size={14} /> Revoke
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {app.scopes.map((scope) => <span key={scope} className="rounded-full bg-slate-900 px-2 py-1 text-xs text-slate-300">{scope}</span>)}
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Connected {formatDate(app.createdAt)} · Last used {formatDate(app.lastUsedAt)} · Expires {formatDate(app.expiresAt)}
+                  </div>
+                </div>
+              );
+            })}
+            {connectedApps.isLoading && <p className="text-sm text-slate-500">Loading connected apps...</p>}
+            {!connectedApps.isLoading && !(connectedApps.data ?? []).length && <p className="rounded-xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">No OAuth apps connected yet.</p>}
+          </div>
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-[#111827] p-5 shadow-xl shadow-black/20">

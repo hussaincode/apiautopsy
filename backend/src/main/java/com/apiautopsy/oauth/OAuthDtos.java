@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
+import java.time.Instant;
+import java.util.UUID;
 
 public final class OAuthDtos {
     private OAuthDtos() {}
@@ -26,5 +28,16 @@ public final class OAuthDtos {
         @JsonProperty("token_type") String tokenType,
         @JsonProperty("expires_in") int expiresIn,
         String scope
+    ) {}
+
+    public record ConnectedAppResponse(
+        UUID tokenId,
+        String clientId,
+        String name,
+        List<String> scopes,
+        Instant createdAt,
+        Instant lastUsedAt,
+        Instant expiresAt,
+        Instant revokedAt
     ) {}
 }
