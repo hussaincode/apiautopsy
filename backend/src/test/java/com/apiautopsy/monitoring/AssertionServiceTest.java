@@ -5,6 +5,7 @@ import com.apiautopsy.schedules.Schedule;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,13 +19,16 @@ class AssertionServiceTest {
         List<ScheduleAssertion> assertions = List.of(
             assertion(schedule, AssertionType.STATUS_CODE, "status", 200, null, null, null, null, null),
             assertion(schedule, AssertionType.JSON_PATH_EQUALS, "token", null, "$.auth.token", "abc", null, null, null),
+            assertion(schedule, AssertionType.HEADER_EXISTS, "content type", null, null, null, null, null, null),
             assertion(schedule, AssertionType.MAX_LATENCY_MS, "latency", null, null, null, null, 500L, null),
             assertion(schedule, AssertionType.MAX_RESPONSE_SIZE_BYTES, "size", null, null, null, null, null, 100L)
         );
+        assertions.get(2).headerName = "content-type";
 
         Execution execution = new Execution();
         execution.statusCode = 200;
         execution.responseBody = "{\"auth\":{\"token\":\"abc\"}}";
+        execution.responseHeaders = Map.of("Content-Type", "application/json");
         execution.responseTimeMs = 120;
         execution.responseSizeBytes = 24;
 

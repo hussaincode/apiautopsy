@@ -75,8 +75,8 @@ export interface Schedule {
 export interface ReportSummary { total: number; success: number; successRate: number; errorRate: number; avgLatencyMs: number; }
 export interface ScheduleMetrics { totalRuns: number; successfulRuns: number; failedRuns: number; successRate: number; failureRate: number; avgLatencyMs: number; p50LatencyMs: number; p90LatencyMs: number; p95LatencyMs: number; p99LatencyMs: number; errorBudgetRemainingPercent: number; uptimeSloMet: boolean; latencySloMet: boolean; }
 export interface ScheduleDetail { schedule: Schedule; metrics: ScheduleMetrics; executions: Execution[]; }
-export type AssertionType = 'STATUS_CODE' | 'JSON_PATH_EXISTS' | 'JSON_PATH_EQUALS' | 'BODY_CONTAINS' | 'MAX_LATENCY_MS' | 'MAX_RESPONSE_SIZE_BYTES';
-export interface ScheduleAssertion { id: string; scheduleId: string; type: AssertionType; name: string; enabled: boolean; expectedStatusCode?: number; jsonPath?: string; expectedValue?: string; containsText?: string; maxLatencyMs?: number; maxResponseSizeBytes?: number; createdAt: string; updatedAt: string; }
+export type AssertionType = 'STATUS_CODE' | 'JSON_PATH_EXISTS' | 'JSON_PATH_EQUALS' | 'BODY_CONTAINS' | 'HEADER_EXISTS' | 'MAX_LATENCY_MS' | 'MAX_RESPONSE_SIZE_BYTES';
+export interface ScheduleAssertion { id: string; scheduleId: string; type: AssertionType; name: string; enabled: boolean; expectedStatusCode?: number; jsonPath?: string; expectedValue?: string; containsText?: string; headerName?: string; maxLatencyMs?: number; maxResponseSizeBytes?: number; createdAt: string; updatedAt: string; }
 export interface AssertionResult { assertionId: string; name: string; type: AssertionType; passed: boolean; message: string; }
 export interface PublicStatus { name: string; method: string; url?: string; status: 'OPERATIONAL' | 'DEGRADED' | 'DOWN' | 'UNKNOWN'; successRate: number; avgLatencyMs: number; p95LatencyMs: number; uptimeTarget: number; totalRuns: number; lastRunAt?: string; recentExecutions: Array<{ executedAt: string; success: boolean; statusCode?: number; responseTimeMs: number }>; }
 export interface AlertRule {
@@ -88,6 +88,13 @@ export interface AlertRule {
   consecutiveFailuresThreshold: number;
   emailRecipients: string[];
   webhookUrl?: string;
+  slackWebhookUrl?: string;
+  discordWebhookUrl?: string;
+  teamsWebhookUrl?: string;
+  genericWebhookConfigured?: boolean;
+  slackWebhookConfigured?: boolean;
+  discordWebhookConfigured?: boolean;
+  teamsWebhookConfigured?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,6 +112,8 @@ export interface AlertIncident {
   lastStatusCode?: number;
   lastLatencyMs?: number;
   lastErrorMessage?: string;
+  durationSeconds: number;
+  stateLabel: string;
 }
 export interface ExtractionRule { variableName: string; jsonPath: string; }
 export interface WorkflowStep { id?: string; apiRequestId: string; stepOrder: number; dependsOnStepId?: string; stopOnFailure: boolean; extractionRules: ExtractionRule[]; }

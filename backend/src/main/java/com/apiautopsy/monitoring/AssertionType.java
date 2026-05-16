@@ -5,6 +5,7 @@ public enum AssertionType {
     JSON_PATH_EXISTS,
     JSON_PATH_EQUALS,
     BODY_CONTAINS,
+    HEADER_EXISTS,
     MAX_LATENCY_MS,
     MAX_RESPONSE_SIZE_BYTES
 }

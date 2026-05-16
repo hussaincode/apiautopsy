@@ -35,6 +35,8 @@ public class AlertRule {
     public String slackWebhookUrlEncrypted;
     @Column(name = "webhook_url_encrypted")
     public String webhookUrlEncrypted;
+    public String discordWebhookUrlEncrypted;
+    public String teamsWebhookUrlEncrypted;
     public Instant createdAt = Instant.now();
     public Instant updatedAt = Instant.now();
 }

@@ -18,6 +18,7 @@ public class MonitoringDtos {
         String jsonPath,
         String expectedValue,
         String containsText,
+        String headerName,
         @Min(1) Long maxLatencyMs,
         @Min(1) Long maxResponseSizeBytes
     ) {}
@@ -32,6 +33,7 @@ public class MonitoringDtos {
         String jsonPath,
         String expectedValue,
         String containsText,
+        String headerName,
         Long maxLatencyMs,
         Long maxResponseSizeBytes,
         Instant createdAt,

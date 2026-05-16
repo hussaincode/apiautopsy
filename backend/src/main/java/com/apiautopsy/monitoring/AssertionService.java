@@ -104,6 +104,8 @@ public class AssertionService {
             }
             case BODY_CONTAINS -> result(assertion, execution.responseBody != null && execution.responseBody.contains(assertion.containsText),
                 "Expected response body to contain configured text");
+            case HEADER_EXISTS -> result(assertion, headerExists(execution.responseHeaders, assertion.headerName),
+                "Expected response header " + assertion.headerName + " to exist");
             case MAX_LATENCY_MS -> result(assertion, execution.responseTimeMs <= assertion.maxLatencyMs,
                 "Expected latency <= " + assertion.maxLatencyMs + " ms, got " + execution.responseTimeMs + " ms");
             case MAX_RESPONSE_SIZE_BYTES -> result(assertion, execution.responseSizeBytes <= assertion.maxResponseSizeBytes,
@@ -156,6 +158,7 @@ public class AssertionService {
         if (request.type() == AssertionType.STATUS_CODE && request.expectedStatusCode() == null) throw new IllegalArgumentException("Status assertions require expectedStatusCode");
         if (request.type() == AssertionType.JSON_PATH_EQUALS && request.expectedValue() == null) throw new IllegalArgumentException("JSON equality assertions require expectedValue");
         if (request.type() == AssertionType.BODY_CONTAINS && (request.containsText() == null || request.containsText().isBlank())) throw new IllegalArgumentException("Body assertions require containsText");
+        if (request.type() == AssertionType.HEADER_EXISTS && (request.headerName() == null || request.headerName().isBlank())) throw new IllegalArgumentException("Header assertions require headerName");
         if (request.type() == AssertionType.MAX_LATENCY_MS && request.maxLatencyMs() == null) throw new IllegalArgumentException("Latency assertions require maxLatencyMs");
         if (request.type() == AssertionType.MAX_RESPONSE_SIZE_BYTES && request.maxResponseSizeBytes() == null) throw new IllegalArgumentException("Size assertions require maxResponseSizeBytes");
     }
@@ -168,6 +171,7 @@ public class AssertionService {
         assertion.jsonPath = request.jsonPath();
         assertion.expectedValue = request.expectedValue();
         assertion.containsText = request.containsText();
+        assertion.headerName = request.headerName() == null ? null : request.headerName().trim();
         assertion.maxLatencyMs = request.maxLatencyMs();
         assertion.maxResponseSizeBytes = request.maxResponseSizeBytes();
     }
@@ -179,6 +183,11 @@ public class AssertionService {
     }
 
     private MonitoringDtos.AssertionResponse toResponse(ScheduleAssertion a) {
-        return new MonitoringDtos.AssertionResponse(a.id, a.schedule.id, a.type, a.name, a.enabled, a.expectedStatusCode, a.jsonPath, a.expectedValue, a.containsText, a.maxLatencyMs, a.maxResponseSizeBytes, a.createdAt, a.updatedAt);
+        return new MonitoringDtos.AssertionResponse(a.id, a.schedule.id, a.type, a.name, a.enabled, a.expectedStatusCode, a.jsonPath, a.expectedValue, a.containsText, a.headerName, a.maxLatencyMs, a.maxResponseSizeBytes, a.createdAt, a.updatedAt);
+    }
+
+    private boolean headerExists(Map<String, Object> headers, String expectedHeader) {
+        if (headers == null || expectedHeader == null || expectedHeader.isBlank()) return false;
+        return headers.keySet().stream().anyMatch(header -> header.equalsIgnoreCase(expectedHeader.trim()));
     }
 }

@@ -30,6 +30,7 @@ public class ScheduleAssertion {
     public String jsonPath;
     public String expectedValue;
     public String containsText;
+    public String headerName;
     public Long maxLatencyMs;
     public Long maxResponseSizeBytes;
     public Instant createdAt = Instant.now();

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,6 +68,9 @@ public class AlertService {
         rule.consecutiveFailuresThreshold = Math.max(1, request.consecutiveFailuresThreshold());
         rule.emailRecipients = cleanRecipients(request.emailRecipients());
         if (request.webhookUrl() != null) rule.webhookUrlEncrypted = encryptWebhook(request.webhookUrl());
+        if (request.slackWebhookUrl() != null) rule.slackWebhookUrlEncrypted = encryptWebhook(request.slackWebhookUrl());
+        if (request.discordWebhookUrl() != null) rule.discordWebhookUrlEncrypted = encryptWebhook(request.discordWebhookUrl());
+        if (request.teamsWebhookUrl() != null) rule.teamsWebhookUrlEncrypted = encryptWebhook(request.teamsWebhookUrl());
         rule.updatedAt = Instant.now();
         return toRuleResponse(rules.save(rule));
     }
@@ -153,7 +157,7 @@ public class AlertService {
         incidents.save(incident);
         if (isNew) {
             emailService.sendAlertTriggered(recipients(rule), rule.schedule.name, reason);
-            sendWebhook(rule, "triggered", reason, execution);
+            sendWebhooks(rule, "triggered", reason, execution);
         }
     }
 
@@ -165,31 +169,44 @@ public class AlertService {
             incident.lastTriggeredAt = Instant.now();
             incidents.save(incident);
             emailService.sendAlertResolved(recipients(rule), rule.schedule.name);
-            sendWebhook(rule, "resolved", "Monitor recovered", execution);
+            sendWebhooks(rule, "resolved", "Monitor recovered", execution);
         });
     }
 
-    private void sendWebhook(AlertRule rule, String event, String reason, Execution execution) {
-        if (rule.webhookUrlEncrypted == null || rule.webhookUrlEncrypted.isBlank()) return;
+    private void sendWebhooks(AlertRule rule, String event, String reason, Execution execution) {
+        java.util.Map<String, Object> genericPayload = alertPayload(rule, event, reason, execution);
+        sendWebhook(rule, "generic", rule.webhookUrlEncrypted, genericPayload);
+        String summary = rule.schedule.name + " " + event + ": " + reason + " (" + execution.responseTimeMs + " ms, status " + (execution.statusCode == null ? "N/A" : execution.statusCode) + ")";
+        sendWebhook(rule, "slack", rule.slackWebhookUrlEncrypted, java.util.Map.of("text", summary));
+        sendWebhook(rule, "discord", rule.discordWebhookUrlEncrypted, java.util.Map.of("content", summary));
+        sendWebhook(rule, "teams", rule.teamsWebhookUrlEncrypted, java.util.Map.of("text", summary));
+    }
+
+    private void sendWebhook(AlertRule rule, String channel, String encryptedUrl, java.util.Map<String, Object> payload) {
+        if (encryptedUrl == null || encryptedUrl.isBlank()) return;
         try {
-            String webhookUrl = cryptoService.decrypt(rule.webhookUrlEncrypted);
+            String webhookUrl = cryptoService.decrypt(encryptedUrl);
             restClient.post()
                 .uri(ssrfGuard.validateExternalHttpUrl(webhookUrl))
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(java.util.Map.of(
-                    "event", event,
-                    "scheduleId", rule.schedule.id.toString(),
-                    "scheduleName", rule.schedule.name,
-                    "reason", reason,
-                    "statusCode", execution.statusCode == null ? "N/A" : execution.statusCode,
-                    "latencyMs", execution.responseTimeMs,
-                    "executedAt", execution.executedAt.toString()
-                ))
+                .body(payload)
                 .retrieve()
                 .toBodilessEntity();
         } catch (RuntimeException ex) {
-            log.warn("Alert webhook delivery failed for schedule {}", rule.schedule.id, ex);
+            log.warn("Alert {} webhook delivery failed for schedule {}", channel, rule.schedule.id, ex);
         }
+    }
+
+    private java.util.Map<String, Object> alertPayload(AlertRule rule, String event, String reason, Execution execution) {
+        return java.util.Map.of(
+            "event", event,
+            "scheduleId", rule.schedule.id.toString(),
+            "scheduleName", rule.schedule.name,
+            "reason", reason,
+            "statusCode", execution.statusCode == null ? "N/A" : execution.statusCode,
+            "latencyMs", execution.responseTimeMs,
+            "executedAt", execution.executedAt.toString()
+        );
     }
 
     private String encryptWebhook(String webhookUrl) {
@@ -221,10 +238,47 @@ public class AlertService {
     }
 
     private AlertDtos.AlertRuleResponse toRuleResponse(AlertRule rule) {
-        return new AlertDtos.AlertRuleResponse(rule.id, rule.schedule.id, rule.enabled, rule.alertOnFailure, rule.latencyThresholdMs, rule.consecutiveFailuresThreshold, rule.emailRecipients, null, rule.createdAt, rule.updatedAt);
+        return new AlertDtos.AlertRuleResponse(
+            rule.id,
+            rule.schedule.id,
+            rule.enabled,
+            rule.alertOnFailure,
+            rule.latencyThresholdMs,
+            rule.consecutiveFailuresThreshold,
+            rule.emailRecipients,
+            null,
+            isConfigured(rule.webhookUrlEncrypted),
+            isConfigured(rule.slackWebhookUrlEncrypted),
+            isConfigured(rule.discordWebhookUrlEncrypted),
+            isConfigured(rule.teamsWebhookUrlEncrypted),
+            rule.createdAt,
+            rule.updatedAt
+        );
     }
 
     private AlertDtos.AlertIncidentResponse toIncidentResponse(AlertIncident incident) {
-        return new AlertDtos.AlertIncidentResponse(incident.id, incident.schedule.id, incident.alertRule.id, incident.execution == null ? null : incident.execution.id, incident.status, incident.reason, incident.openedAt, incident.resolvedAt, incident.lastTriggeredAt, incident.triggerCount, incident.lastStatusCode, incident.lastLatencyMs, incident.lastErrorMessage);
+        Instant end = incident.resolvedAt == null ? Instant.now() : incident.resolvedAt;
+        long durationSeconds = incident.openedAt == null ? 0 : Math.max(0, Duration.between(incident.openedAt, end).toSeconds());
+        return new AlertDtos.AlertIncidentResponse(
+            incident.id,
+            incident.schedule.id,
+            incident.alertRule.id,
+            incident.execution == null ? null : incident.execution.id,
+            incident.status,
+            incident.reason,
+            incident.openedAt,
+            incident.resolvedAt,
+            incident.lastTriggeredAt,
+            incident.triggerCount,
+            incident.lastStatusCode,
+            incident.lastLatencyMs,
+            incident.lastErrorMessage,
+            durationSeconds,
+            incident.status == AlertIncidentStatus.OPEN ? "Currently down" : "Recovered"
+        );
+    }
+
+    private boolean isConfigured(String encryptedValue) {
+        return encryptedValue != null && !encryptedValue.isBlank();
     }
 }

@@ -15,7 +15,10 @@ public class AlertDtos {
         @Min(1) Long latencyThresholdMs,
         @Min(1) int consecutiveFailuresThreshold,
         List<@Email String> emailRecipients,
-        @URL(protocol = "https") String webhookUrl
+        @URL(protocol = "https") String webhookUrl,
+        @URL(protocol = "https") String slackWebhookUrl,
+        @URL(protocol = "https") String discordWebhookUrl,
+        @URL(protocol = "https") String teamsWebhookUrl
     ) {}
 
     public record AlertRuleResponse(
@@ -27,6 +30,10 @@ public class AlertDtos {
         int consecutiveFailuresThreshold,
         List<String> emailRecipients,
         String webhookUrl,
+        boolean genericWebhookConfigured,
+        boolean slackWebhookConfigured,
+        boolean discordWebhookConfigured,
+        boolean teamsWebhookConfigured,
         Instant createdAt,
         Instant updatedAt
     ) {}
@@ -44,6 +51,8 @@ public class AlertDtos {
         int triggerCount,
         Integer lastStatusCode,
         Long lastLatencyMs,
-        String lastErrorMessage
+        String lastErrorMessage,
+        long durationSeconds,
+        String stateLabel
     ) {}
 }

@@ -96,7 +96,10 @@ export function SchedulerPage({
         latencyThresholdMs: rule?.latencyThresholdMs ?? 1500,
         consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold ?? 1,
         emailRecipients: rule?.emailRecipients ?? [],
-        webhookUrl: rule?.webhookUrl
+        webhookUrl: rule?.webhookUrl,
+        slackWebhookUrl: rule?.slackWebhookUrl,
+        discordWebhookUrl: rule?.discordWebhookUrl,
+        teamsWebhookUrl: rule?.teamsWebhookUrl
       }
     });
   }
@@ -281,7 +284,10 @@ function ScheduleDetailPanel({ assertions, collectionName, executions, incidents
               <div className="min-w-0">
                 <div className={`font-semibold ${incident.status === 'OPEN' ? 'text-red-300' : 'text-teal-300'}`}>{incident.status}</div>
                 <div className="mt-1 truncate text-slate-300">{incident.reason}</div>
-                <div className="mt-1 text-xs text-slate-500">Last triggered {new Date(incident.lastTriggeredAt).toLocaleString()}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {incident.stateLabel ?? (incident.status === 'OPEN' ? 'Currently down' : 'Recovered')} · {formatDuration(incident.durationSeconds)} · Last triggered {new Date(incident.lastTriggeredAt).toLocaleString()}
+                </div>
+                {incident.executionId && <div className="mt-1 font-mono text-[11px] text-slate-600">Execution {incident.executionId.slice(0, 8)}</div>}
               </div>
               {incident.status === 'OPEN' && (
                 <button className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-teal-400 hover:text-teal-300" onClick={() => onResolveIncident(incident.id)}>
@@ -385,7 +391,10 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
     latencyThresholdMs: rule?.latencyThresholdMs?.toString() ?? '1500',
     consecutiveFailuresThreshold: rule?.consecutiveFailuresThreshold?.toString() ?? '1',
     emailRecipients: rule?.emailRecipients?.join(', ') ?? '',
-    webhookUrl: rule?.webhookUrl ?? ''
+    webhookUrl: rule?.webhookUrl ?? '',
+    slackWebhookUrl: rule?.slackWebhookUrl ?? '',
+    discordWebhookUrl: rule?.discordWebhookUrl ?? '',
+    teamsWebhookUrl: rule?.teamsWebhookUrl ?? ''
   });
 
   const recipients = draft.emailRecipients.split(',').map((email) => email.trim()).filter(Boolean);
@@ -443,11 +452,16 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
             <p className="mt-2 text-xs leading-5 text-slate-500">The schedule creator is notified automatically. Add any teammate, client, or support inbox that should also receive alerts.</p>
           </label>
 
-          <label className="block">
-            <FieldLabel>Webhook URL</FieldLabel>
-            <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" placeholder="https://hooks.slack.com/services/..." value={draft.webhookUrl} onChange={(event) => setDraft({ ...draft, webhookUrl: event.target.value })} />
-            <p className="mt-2 text-xs leading-5 text-slate-500">Optional HTTPS endpoint for triggered and recovered alerts.</p>
-          </label>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <FieldLabel>Alert channels</FieldLabel>
+            <p className="mb-3 text-xs leading-5 text-slate-500">Paste HTTPS webhook URLs for each channel. Existing saved webhooks stay active if you leave a field blank.</p>
+            <div className="grid gap-3">
+              <WebhookInput configured={rule?.genericWebhookConfigured} label="Generic webhook" placeholder="https://api.company.com/apiautopsy-alerts" value={draft.webhookUrl} onChange={(value) => setDraft({ ...draft, webhookUrl: value })} />
+              <WebhookInput configured={rule?.slackWebhookConfigured} label="Slack webhook" placeholder="https://hooks.slack.com/services/..." value={draft.slackWebhookUrl} onChange={(value) => setDraft({ ...draft, slackWebhookUrl: value })} />
+              <WebhookInput configured={rule?.discordWebhookConfigured} label="Discord webhook" placeholder="https://discord.com/api/webhooks/..." value={draft.discordWebhookUrl} onChange={(value) => setDraft({ ...draft, discordWebhookUrl: value })} />
+              <WebhookInput configured={rule?.teamsWebhookConfigured} label="Teams webhook" placeholder="https://*.webhook.office.com/..." value={draft.teamsWebhookUrl} onChange={(value) => setDraft({ ...draft, teamsWebhookUrl: value })} />
+            </div>
+          </div>
         </div>
 
         <div className="shrink-0 flex justify-end gap-2 border-t border-slate-800 bg-[#111827] px-5 py-4">
@@ -461,7 +475,10 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
               latencyThresholdMs: latency,
               consecutiveFailuresThreshold: consecutive,
               emailRecipients: recipients,
-              webhookUrl: draft.webhookUrl.trim() || undefined
+              webhookUrl: draft.webhookUrl.trim() || undefined,
+              slackWebhookUrl: draft.slackWebhookUrl.trim() || undefined,
+              discordWebhookUrl: draft.discordWebhookUrl.trim() || undefined,
+              teamsWebhookUrl: draft.teamsWebhookUrl.trim() || undefined
             })}
           >
             <CheckCircle2 size={16} />Save alerts
@@ -469,6 +486,18 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
         </div>
       </div>
     </div>
+  );
+}
+
+function WebhookInput({ configured, label, onChange, placeholder, value }: { configured?: boolean; label: string; onChange: (value: string) => void; placeholder: string; value: string }) {
+  return (
+    <label className="block">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+        {configured && <span className="rounded-full bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-300">Configured</span>}
+      </div>
+      <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100 focus:border-indigo-500" placeholder={placeholder} value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }
 
@@ -608,6 +637,7 @@ function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: Sched
     jsonPath: '$.status',
     expectedValue: '',
     containsText: '',
+    headerName: 'content-type',
     maxLatencyMs: '1000',
     maxResponseSizeBytes: '50000'
   });
@@ -625,6 +655,7 @@ function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: Sched
         jsonPath: draft.type === 'JSON_PATH_EXISTS' || draft.type === 'JSON_PATH_EQUALS' ? draft.jsonPath : undefined,
         expectedValue: draft.type === 'JSON_PATH_EQUALS' ? draft.expectedValue : undefined,
         containsText: draft.type === 'BODY_CONTAINS' ? draft.containsText : undefined,
+        headerName: draft.type === 'HEADER_EXISTS' ? draft.headerName : undefined,
         maxLatencyMs: draft.type === 'MAX_LATENCY_MS' ? Number(draft.maxLatencyMs) : undefined,
         maxResponseSizeBytes: draft.type === 'MAX_RESPONSE_SIZE_BYTES' ? Number(draft.maxResponseSizeBytes) : undefined
       });
@@ -656,6 +687,7 @@ function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: Sched
                 <option value="JSON_PATH_EXISTS">JSON field exists</option>
                 <option value="JSON_PATH_EQUALS">JSON field equals</option>
                 <option value="BODY_CONTAINS">Body contains text</option>
+                <option value="HEADER_EXISTS">Header exists</option>
                 <option value="MAX_LATENCY_MS">Response is faster than</option>
                 <option value="MAX_RESPONSE_SIZE_BYTES">Response size under</option>
               </Select>
@@ -669,6 +701,7 @@ function AssertionsPanel({ assertions, onCreate, onDelete }: { assertions: Sched
             setDraft({ ...draft, jsonPath: path.trim(), expectedValue: value.join('=').trim() });
               }} />}
               {draft.type === 'BODY_CONTAINS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="healthy" value={draft.containsText} onChange={(event) => setDraft({ ...draft, containsText: event.target.value })} />}
+              {draft.type === 'HEADER_EXISTS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" placeholder="content-type" value={draft.headerName} onChange={(event) => setDraft({ ...draft, headerName: event.target.value })} />}
               {draft.type === 'MAX_LATENCY_MS' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="numeric" value={draft.maxLatencyMs} onChange={(event) => setDraft({ ...draft, maxLatencyMs: event.target.value })} />}
               {draft.type === 'MAX_RESPONSE_SIZE_BYTES' && <Input className="w-full rounded-xl border-slate-700 bg-slate-950 text-slate-100" inputMode="numeric" value={draft.maxResponseSizeBytes} onChange={(event) => setDraft({ ...draft, maxResponseSizeBytes: event.target.value })} />}
             </label>
@@ -700,16 +733,18 @@ function expectedFieldLabel(type: AssertionType) {
     case 'JSON_PATH_EXISTS': return 'JSON path to find';
     case 'JSON_PATH_EQUALS': return 'JSON path and expected value';
     case 'BODY_CONTAINS': return 'Text that must appear';
+    case 'HEADER_EXISTS': return 'Header name';
     case 'MAX_LATENCY_MS': return 'Maximum milliseconds';
     case 'MAX_RESPONSE_SIZE_BYTES': return 'Maximum bytes';
   }
 }
 
-function isAssertionExpectedValueReady(draft: { type: AssertionType; expectedStatusCode: string; jsonPath: string; expectedValue: string; containsText: string; maxLatencyMs: string; maxResponseSizeBytes: string }) {
+function isAssertionExpectedValueReady(draft: { type: AssertionType; expectedStatusCode: string; jsonPath: string; expectedValue: string; containsText: string; headerName: string; maxLatencyMs: string; maxResponseSizeBytes: string }) {
   if (draft.type === 'STATUS_CODE') return Number.isFinite(Number(draft.expectedStatusCode));
   if (draft.type === 'JSON_PATH_EXISTS') return draft.jsonPath.trim().startsWith('$.');
   if (draft.type === 'JSON_PATH_EQUALS') return draft.jsonPath.trim().startsWith('$.') && draft.expectedValue.trim().length > 0;
   if (draft.type === 'BODY_CONTAINS') return draft.containsText.trim().length > 0;
+  if (draft.type === 'HEADER_EXISTS') return draft.headerName.trim().length > 0;
   if (draft.type === 'MAX_LATENCY_MS') return Number(draft.maxLatencyMs) > 0;
   return Number(draft.maxResponseSizeBytes) > 0;
 }
@@ -720,6 +755,7 @@ function describeAssertion(assertion: ScheduleAssertion) {
     case 'JSON_PATH_EXISTS': return `JSON path must exist: ${assertion.jsonPath}`;
     case 'JSON_PATH_EQUALS': return `${assertion.jsonPath} must equal ${assertion.expectedValue}`;
     case 'BODY_CONTAINS': return `Body must contain "${assertion.containsText}"`;
+    case 'HEADER_EXISTS': return `Header must exist: ${assertion.headerName}`;
     case 'MAX_LATENCY_MS': return `Response must be under ${assertion.maxLatencyMs} ms`;
     case 'MAX_RESPONSE_SIZE_BYTES': return `Response must be under ${assertion.maxResponseSizeBytes} bytes`;
   }
@@ -831,4 +867,14 @@ function formatDateTime(value: string) {
     month: 'short',
     year: 'numeric'
   }).format(date);
+}
+
+function formatDuration(seconds?: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds ?? 0));
+  if (safeSeconds < 60) return `${safeSeconds}s`;
+  const minutes = Math.floor(safeSeconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
