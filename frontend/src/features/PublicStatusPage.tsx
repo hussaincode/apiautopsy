@@ -112,13 +112,48 @@ function UptimeHistory({ name, recentExecutions, successRate }: { name: string; 
           </div>
           <div className="text-sm font-semibold text-teal-300">{successRate.toFixed(2)}% uptime</div>
         </div>
-        <div className="flex h-12 items-end gap-1 overflow-hidden">
+        <div className="flex h-20 items-end gap-1 overflow-visible">
           {days.map((day) => (
-            <div
-              key={day.isoDate}
-              className={`h-10 min-w-1.5 flex-1 rounded-sm ${day.state === 'down' ? 'bg-red-400' : day.state === 'degraded' ? 'bg-amber-300' : day.state === 'unknown' ? 'bg-slate-700' : 'bg-teal-400'}`}
-              title={`${day.label}: ${day.summary}`}
-            />
+            <div key={day.isoDate} className="group relative flex h-12 min-w-1.5 flex-1 items-end">
+              <div
+                aria-label={`${day.fullLabel}: ${day.summary}`}
+                className={`h-10 w-full rounded-sm transition-transform duration-150 group-hover:scale-y-110 ${day.state === 'down' ? 'bg-red-400' : day.state === 'degraded' ? 'bg-amber-300' : day.state === 'unknown' ? 'bg-slate-700' : 'bg-teal-400'}`}
+              />
+              <div className="pointer-events-none absolute bottom-14 left-1/2 z-20 hidden w-72 -translate-x-1/2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-left text-sm text-slate-100 shadow-2xl shadow-black/40 group-hover:block">
+                <div className="absolute -bottom-1 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-slate-700 bg-slate-950" />
+                <div className="font-bold">{day.fullLabel}</div>
+                {day.state === 'operational' && (
+                  <p className="mt-2 text-slate-300">No downtime recorded on this day.</p>
+                )}
+                {day.state === 'degraded' && (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-amber-300">Partial outage</span>
+                      <span className="font-semibold text-slate-200">{day.estimatedOutage}</span>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Related</div>
+                      <p className="mt-1 text-slate-300">{day.failed} failed checks and {day.passed} successful checks were recorded.</p>
+                    </div>
+                  </div>
+                )}
+                {day.state === 'down' && (
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-red-300">Outage</span>
+                      <span className="font-semibold text-slate-200">{day.estimatedOutage}</span>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Related</div>
+                      <p className="mt-1 text-slate-300">All {day.failed} checks failed on this day.</p>
+                    </div>
+                  </div>
+                )}
+                {day.state === 'unknown' && (
+                  <p className="mt-2 text-slate-400">No scheduled checks were recorded on this day.</p>
+                )}
+              </div>
+            </div>
           ))}
         </div>
         <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
@@ -144,14 +179,15 @@ function Metric({ description, icon, label, value }: { description: string; icon
 }
 
 function buildUptimeDays(recentExecutions: Array<{ executedAt: string; success: boolean }>) {
-  const byDay = new Map<string, { total: number; failed: number }>();
+  const byDay = new Map<string, { total: number; failed: number; passed: number }>();
   for (const execution of recentExecutions) {
     const date = new Date(execution.executedAt);
     if (Number.isNaN(date.getTime())) continue;
     const key = date.toISOString().slice(0, 10);
-    const existing = byDay.get(key) ?? { total: 0, failed: 0 };
+    const existing = byDay.get(key) ?? { total: 0, failed: 0, passed: 0 };
     existing.total += 1;
-    if (!execution.success) existing.failed += 1;
+    if (execution.success) existing.passed += 1;
+    else existing.failed += 1;
     byDay.set(key, existing);
   }
 
@@ -166,10 +202,21 @@ function buildUptimeDays(recentExecutions: Array<{ executedAt: string; success: 
     return {
       isoDate,
       label: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+      fullLabel: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
       state,
+      failed: stats?.failed ?? 0,
+      passed: stats?.passed ?? 0,
+      estimatedOutage: formatOutageDuration(stats?.failed ?? 0),
       summary: !stats ? 'No checks recorded' : stats.failed === 0 ? `${stats.total} checks passed` : `${stats.failed} of ${stats.total} checks failed`
     };
   });
+}
+
+function formatOutageDuration(failedChecks: number) {
+  const estimatedMinutes = Math.max(failedChecks * 5, failedChecks > 0 ? 5 : 0);
+  const hours = Math.floor(estimatedMinutes / 60);
+  const minutes = estimatedMinutes % 60;
+  return `${hours} hrs ${minutes} mins`;
 }
 
 function formatStatus(status: string) {

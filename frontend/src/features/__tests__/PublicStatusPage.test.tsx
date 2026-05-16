@@ -14,7 +14,10 @@ vi.mock('../../api/hooks', () => ({
       p95LatencyMs: 220,
       uptimeTarget: 99,
       totalRuns: 10,
-      recentExecutions: [{ executedAt: new Date('2026-05-06T10:00:00Z').toISOString(), success: true, statusCode: 200, responseTimeMs: 110 }]
+      recentExecutions: [
+        { executedAt: new Date('2026-05-06T10:00:00Z').toISOString(), success: true, statusCode: 200, responseTimeMs: 110 },
+        { executedAt: new Date('2026-05-06T10:05:00Z').toISOString(), success: false, statusCode: 500, responseTimeMs: 980 }
+      ]
     },
     isLoading: false,
     isError: false
@@ -32,5 +35,7 @@ describe('PublicStatusPage', () => {
     expect(screen.getByText('220 ms')).toBeInTheDocument();
     expect(screen.getByText('Uptime over the past 90 days')).toBeInTheDocument();
     expect(screen.getAllByText('99.90% uptime').length).toBeGreaterThan(0);
+    expect(screen.getByText('Partial outage')).toBeInTheDocument();
+    expect(screen.getByText('1 failed checks and 1 successful checks were recorded.')).toBeInTheDocument();
   });
 });
