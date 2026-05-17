@@ -181,6 +181,7 @@ export function SchedulerPage({
           collectionName={selectedCollection?.name}
           incidents={(alertIncidents.data ?? []).filter((incident) => selectedSchedule && incident.scheduleId === selectedSchedule.id)}
           alertRule={selectedSchedule ? ruleByScheduleId.get(selectedSchedule.id) : undefined}
+          onOpenAlertSettings={() => selectedSchedule && setAlertSchedule(selectedSchedule)}
           onResolveIncident={(incidentId) => resolveAlertIncident.mutate(incidentId)}
           assertions={assertions.data ?? []}
           onCreateAssertion={(payload) => createAssertion.mutateAsync(payload)}
@@ -230,7 +231,7 @@ function isSchedule(value: unknown): value is Schedule {
   return Boolean(value && typeof value === 'object' && 'id' in value && 'name' in value);
 }
 
-function ScheduleDetailPanel({ alertRule, assertions, collectionName, executions, incidents, isLoading, metrics, onCreateAssertion, onDeleteAssertion, onResolveIncident, request, schedule }: { alertRule?: AlertRule; assertions: ScheduleAssertion[]; collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onCreateAssertion: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDeleteAssertion: (assertionId: string) => Promise<unknown>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
+function ScheduleDetailPanel({ alertRule, assertions, collectionName, executions, incidents, isLoading, metrics, onCreateAssertion, onDeleteAssertion, onOpenAlertSettings, onResolveIncident, request, schedule }: { alertRule?: AlertRule; assertions: ScheduleAssertion[]; collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onCreateAssertion: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDeleteAssertion: (assertionId: string) => Promise<unknown>; onOpenAlertSettings: () => void; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
   if (!schedule) {
     return <section className="rounded-2xl border border-slate-800 bg-[#111827] p-6 shadow-xl shadow-black/20"><EmptyState title="Select a schedule" body="Choose a schedule to inspect uptime, latency, and execution history." /></section>;
   }
@@ -285,7 +286,7 @@ function ScheduleDetailPanel({ alertRule, assertions, collectionName, executions
       </div>
 
       <div className="px-5 pb-5">
-        <AlertProof rule={alertRule} />
+        <AlertProof rule={alertRule} onOpenSettings={onOpenAlertSettings} />
       </div>
 
       <div className="px-5 pb-5">
@@ -417,7 +418,7 @@ function IncidentTimeline({ incidents, onResolveIncident }: { incidents: AlertIn
   );
 }
 
-function AlertProof({ rule }: { rule?: AlertRule }) {
+function AlertProof({ onOpenSettings, rule }: { onOpenSettings: () => void; rule?: AlertRule }) {
   const channels = [
     { label: 'Owner email', enabled: rule?.enabled, detail: 'Schedule owner or workspace owner' },
     { label: 'Extra emails', enabled: rule?.enabled && (rule.emailRecipients?.length ?? 0) > 0, detail: rule?.emailRecipients?.join(', ') },
@@ -428,12 +429,20 @@ function AlertProof({ rule }: { rule?: AlertRule }) {
   ];
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-      <div className="flex items-start gap-2">
-        <Bell className="mt-0.5 text-indigo-300" size={16} />
-        <div>
-          <h3 className="text-sm font-semibold text-slate-100">Alert delivery proof</h3>
-          <p className="mt-1 text-xs leading-5 text-slate-500">When an incident opens or recovers, APIAutopsy notifies enabled channels below. Webhook URLs stay encrypted and are never shown.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <Bell className="mt-0.5 text-indigo-300" size={16} />
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">Alert delivery proof</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">When an incident opens or recovers, APIAutopsy notifies enabled channels below. Webhook URLs stay encrypted and are never shown.</p>
+          </div>
         </div>
+        <button
+          className="rounded-xl border border-indigo-400/60 px-3 py-2 text-xs font-bold text-indigo-100 transition hover:bg-indigo-500/15"
+          onClick={onOpenSettings}
+        >
+          Alert settings
+        </button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {channels.map((channel) => (
