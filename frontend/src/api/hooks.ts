@@ -80,6 +80,7 @@ export function useCreateSchedule(workspaceId?: string) {
     onSuccess: (schedule) => {
       qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current ? [schedule, ...current.filter((item) => item.id !== schedule.id)] : [schedule]);
       qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
+      qc.invalidateQueries({ queryKey: ['alert-rules', workspaceId] });
     }
   });
 }
@@ -92,6 +93,7 @@ export function useUpdateSchedule(workspaceId?: string) {
       qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current?.map((item) => item.id === schedule.id ? schedule : item) ?? [schedule]);
       qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
       qc.invalidateQueries({ queryKey: ['schedule-detail', workspaceId, schedule.id] });
+      qc.invalidateQueries({ queryKey: ['alert-rules', workspaceId] });
     }
   });
 }
@@ -125,6 +127,8 @@ export function useDeleteSchedule(workspaceId?: string) {
       qc.setQueryData<Schedule[]>(['schedules', workspaceId], (current) => current?.filter((schedule) => schedule.id !== id) ?? []);
       qc.invalidateQueries({ queryKey: ['schedules', workspaceId] });
       qc.invalidateQueries({ queryKey: ['executions', workspaceId] });
+      qc.invalidateQueries({ queryKey: ['alert-rules', workspaceId] });
+      qc.invalidateQueries({ queryKey: ['alert-incidents', workspaceId] });
       qc.removeQueries({ queryKey: ['schedule-detail', workspaceId, id] });
     }
   });

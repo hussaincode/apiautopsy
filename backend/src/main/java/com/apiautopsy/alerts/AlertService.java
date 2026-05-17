@@ -81,6 +81,21 @@ public class AlertService {
     }
 
     @Transactional
+    public AlertRule ensureDefaultRule(Schedule schedule) {
+        return rules.findByScheduleId(schedule.id).orElseGet(() -> {
+            AlertRule rule = new AlertRule();
+            rule.workspace = schedule.workspace;
+            rule.schedule = schedule;
+            rule.enabled = true;
+            rule.alertOnFailure = true;
+            rule.consecutiveFailuresThreshold = 1;
+            rule.createdAt = Instant.now();
+            rule.updatedAt = Instant.now();
+            return rules.save(rule);
+        });
+    }
+
+    @Transactional
     public AlertDtos.AlertIncidentResponse resolveIncident(UUID userId, UUID workspaceId, UUID incidentId) {
         workspaceService.requireMember(workspaceId, userId);
         AlertIncident incident = incidents.findById(incidentId).orElseThrow(() -> new NotFoundException("Alert incident not found"));
@@ -95,15 +110,14 @@ public class AlertService {
     @Transactional
     public void evaluateScheduleExecution(Schedule schedule, Execution execution) {
         try {
-            rules.findByScheduleId(schedule.id).ifPresent(rule -> {
-                if (!rule.enabled) return;
-                List<String> reasons = reasons(rule, execution);
-                if (reasons.isEmpty()) {
-                    resolveOpenIncident(rule, execution);
-                    return;
-                }
-                triggerIncident(rule, execution, String.join("; ", reasons));
-            });
+            AlertRule rule = ensureDefaultRule(schedule);
+            if (!rule.enabled) return;
+            List<String> reasons = reasons(rule, execution);
+            if (reasons.isEmpty()) {
+                resolveOpenIncident(rule, execution);
+                return;
+            }
+            triggerIncident(rule, execution, String.join("; ", reasons));
         } catch (RuntimeException ex) {
             log.error("Alert evaluation failed for schedule {}", schedule.id, ex);
         }

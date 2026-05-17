@@ -66,6 +66,7 @@ public class ScheduleService {
         applyTarget(schedule, workspaceId, dto);
         apply(schedule, dto);
         schedules.save(schedule);
+        alertService.ensureDefaultRule(schedule);
         return toResponse(schedule);
     }
 
