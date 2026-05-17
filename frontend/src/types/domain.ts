@@ -126,6 +126,8 @@ export interface AlertIncident {
   durationSeconds: number;
   stateLabel: string;
 }
+export interface AlertDeliveryResult { channel: string; status: 'SENT' | 'FAILED' | 'SKIPPED'; message: string; }
+export interface AlertTestResponse { scheduleId: string; testedAt: string; results: AlertDeliveryResult[]; }
 export interface ExtractionRule { variableName: string; jsonPath: string; }
 export interface WorkflowStep { id?: string; apiRequestId: string; stepOrder: number; dependsOnStepId?: string; stopOnFailure: boolean; extractionRules: ExtractionRule[]; }
 export interface WorkflowRunLog { id: string; workflowStepId: string; executionId?: string; stepOrder: number; stepName: string; success: boolean; responseTimeMs: number; statusCode?: number; extractedVariables: Record<string, unknown>; errorMessage?: string; executedAt: string; }

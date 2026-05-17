@@ -55,4 +55,7 @@ public class AlertDtos {
         long durationSeconds,
         String stateLabel
     ) {}
+
+    public record AlertDeliveryResult(String channel, String status, String message) {}
+    public record AlertTestResponse(UUID scheduleId, Instant testedAt, List<AlertDeliveryResult> results) {}
 }

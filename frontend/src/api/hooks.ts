@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import type { AlertIncident, AlertRule, ApiRequest, Certificate, Collection, ConnectedApp, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
+import type { AlertIncident, AlertRule, AlertTestResponse, ApiRequest, Certificate, Collection, ConnectedApp, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces(enabled = true) {
   return useQuery({ queryKey: ['workspaces'], enabled, queryFn: async () => (await api.get<Workspace[]>('/workspaces')).data });
@@ -201,6 +201,12 @@ export function useAlertIncidents(workspaceId?: string) {
     enabled: !!workspaceId,
     refetchInterval: 15000,
     queryFn: async () => (await api.get<AlertIncident[]>(`/workspaces/${workspaceId}/alerts/incidents`)).data
+  });
+}
+
+export function useTestAlertRule(workspaceId?: string) {
+  return useMutation({
+    mutationFn: async (scheduleId: string) => (await api.post<AlertTestResponse>(`/workspaces/${workspaceId}/alerts/rules/${scheduleId}/test`)).data
   });
 }
 

@@ -1,8 +1,8 @@
 import { Activity, AlertTriangle, Bell, CalendarClock, CheckCircle2, Clock3, Copy, Edit3, ExternalLink, Gauge, Globe2, Info, Plus, Power, SearchCheck, ShieldCheck, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useAlertIncidents, useAlertRules, useCreateAssertion, useDeleteAssertion, useResolveAlertIncident, useSaveAlertRule, useScheduleAssertions, useScheduleDetail } from '../api/hooks';
+import { useAlertIncidents, useAlertRules, useCreateAssertion, useDeleteAssertion, useResolveAlertIncident, useSaveAlertRule, useScheduleAssertions, useScheduleDetail, useTestAlertRule } from '../api/hooks';
 import { Button, EmptyState, FieldLabel, Input, Select } from '../components/ui';
-import type { AlertIncident, AlertRule, ApiRequest, AssertionType, Execution, Schedule, ScheduleAssertion, ScheduleType } from '../types/domain';
+import type { AlertDeliveryResult, AlertIncident, AlertRule, ApiRequest, AssertionType, Execution, Schedule, ScheduleAssertion, ScheduleType } from '../types/domain';
 import type { Collection } from '../types/domain';
 
 type SchedulePayload = {
@@ -58,6 +58,7 @@ export function SchedulerPage({
   const alertRules = useAlertRules(workspaceId);
   const alertIncidents = useAlertIncidents(workspaceId);
   const saveAlertRule = useSaveAlertRule(workspaceId);
+  const testAlertRule = useTestAlertRule(workspaceId);
   const resolveAlertIncident = useResolveAlertIncident(workspaceId);
   const ruleByScheduleId = useMemo(() => new Map((alertRules.data ?? []).map((rule) => [rule.scheduleId, rule])), [alertRules.data]);
   const openIncidents = useMemo(() => (alertIncidents.data ?? []).filter((incident) => incident.status === 'OPEN'), [alertIncidents.data]);
@@ -206,12 +207,18 @@ export function SchedulerPage({
       {alertSchedule && (
         <AlertRuleModal
           isSaving={saveAlertRule.isPending}
+          isTesting={testAlertRule.isPending}
           rule={ruleByScheduleId.get(alertSchedule.id)}
           schedule={alertSchedule}
           onClose={() => setAlertSchedule(undefined)}
           onSave={async (payload) => {
             await saveAlertRule.mutateAsync({ scheduleId: alertSchedule.id, payload });
             setAlertSchedule(undefined);
+          }}
+          onTest={async (payload) => {
+            await saveAlertRule.mutateAsync({ scheduleId: alertSchedule.id, payload });
+            const response = await testAlertRule.mutateAsync(alertSchedule.id);
+            return response.results;
           }}
         />
       )}
@@ -440,7 +447,7 @@ function AlertProof({ rule }: { rule?: AlertRule }) {
   );
 }
 
-function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSaving: boolean; rule?: AlertRule; schedule: Schedule; onClose: () => void; onSave: (payload: Partial<AlertRule>) => Promise<void> }) {
+function AlertRuleModal({ isSaving, isTesting, rule, schedule, onClose, onSave, onTest }: { isSaving: boolean; isTesting: boolean; rule?: AlertRule; schedule: Schedule; onClose: () => void; onSave: (payload: Partial<AlertRule>) => Promise<void>; onTest: (payload: Partial<AlertRule>) => Promise<AlertDeliveryResult[]> }) {
   const [draft, setDraft] = useState({
     enabled: rule?.enabled ?? true,
     alertOnFailure: rule?.alertOnFailure ?? true,
@@ -452,10 +459,35 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
     discordWebhookUrl: rule?.discordWebhookUrl ?? '',
     teamsWebhookUrl: rule?.teamsWebhookUrl ?? ''
   });
+  const [testResults, setTestResults] = useState<AlertDeliveryResult[]>([]);
+  const [testError, setTestError] = useState('');
 
   const recipients = draft.emailRecipients.split(',').map((email) => email.trim()).filter(Boolean);
   const latency = draft.latencyThresholdMs.trim() ? Number(draft.latencyThresholdMs) : undefined;
   const consecutive = Math.max(1, Number(draft.consecutiveFailuresThreshold || 1));
+  const canSubmit = latency === undefined || (Number.isFinite(latency) && latency >= 1);
+  const payload = (): Partial<AlertRule> => ({
+    enabled: draft.enabled,
+    alertOnFailure: draft.alertOnFailure,
+    latencyThresholdMs: latency,
+    consecutiveFailuresThreshold: consecutive,
+    emailRecipients: recipients,
+    webhookUrl: draft.webhookUrl.trim() || undefined,
+    slackWebhookUrl: draft.slackWebhookUrl.trim() || undefined,
+    discordWebhookUrl: draft.discordWebhookUrl.trim() || undefined,
+    teamsWebhookUrl: draft.teamsWebhookUrl.trim() || undefined
+  });
+
+  async function sendTest() {
+    if (!canSubmit) return;
+    setTestError('');
+    setTestResults([]);
+    try {
+      setTestResults(await onTest(payload()));
+    } catch {
+      setTestError('Could not send the test alert. Check the saved channel settings and try again.');
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
@@ -518,24 +550,42 @@ function AlertRuleModal({ isSaving, rule, schedule, onClose, onSave }: { isSavin
               <WebhookInput configured={rule?.teamsWebhookConfigured} label="Teams webhook" placeholder="https://*.webhook.office.com/..." value={draft.teamsWebhookUrl} onChange={(value) => setDraft({ ...draft, teamsWebhookUrl: value })} />
             </div>
           </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-100">Test alert delivery</div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Saves these settings first, then sends a test payload to each configured channel.</p>
+              </div>
+              <button
+                className="rounded-xl border border-indigo-400/60 px-4 py-2 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isSaving || isTesting || !canSubmit}
+                onClick={sendTest}
+              >
+                {isTesting ? 'Testing...' : 'Send test alert'}
+              </button>
+            </div>
+            {testError && <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{testError}</div>}
+            {testResults.length > 0 && (
+              <div className="mt-3 grid gap-2">
+                {testResults.map((result) => (
+                  <div key={result.channel} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm">
+                    <span className="font-semibold capitalize text-slate-200">{result.channel}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${result.status === 'SENT' ? 'bg-teal-500/15 text-teal-300' : result.status === 'FAILED' ? 'bg-red-500/15 text-red-300' : 'bg-slate-800 text-slate-400'}`}>{result.status}</span>
+                    <span className="w-full text-xs text-slate-500">{result.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="shrink-0 flex justify-end gap-2 border-t border-slate-800 bg-[#111827] px-5 py-4">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <button
             className="flex h-10 items-center gap-2 rounded-xl bg-indigo-500 px-4 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:opacity-50"
-            disabled={isSaving || (latency !== undefined && (!Number.isFinite(latency) || latency < 1))}
-            onClick={() => onSave({
-              enabled: draft.enabled,
-              alertOnFailure: draft.alertOnFailure,
-              latencyThresholdMs: latency,
-              consecutiveFailuresThreshold: consecutive,
-              emailRecipients: recipients,
-              webhookUrl: draft.webhookUrl.trim() || undefined,
-              slackWebhookUrl: draft.slackWebhookUrl.trim() || undefined,
-              discordWebhookUrl: draft.discordWebhookUrl.trim() || undefined,
-              teamsWebhookUrl: draft.teamsWebhookUrl.trim() || undefined
-            })}
+            disabled={isSaving || !canSubmit}
+            onClick={() => onSave(payload())}
           >
             <CheckCircle2 size={16} />Save alerts
           </button>

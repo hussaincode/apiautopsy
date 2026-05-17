@@ -80,6 +80,27 @@ public class AlertService {
         return incidents.findTop100ByWorkspaceIdOrderByOpenedAtDesc(workspaceId).stream().map(this::toIncidentResponse).toList();
     }
 
+    public AlertDtos.AlertTestResponse sendTestAlert(UUID userId, UUID workspaceId, UUID scheduleId) {
+        workspaceService.requireMember(workspaceId, userId);
+        Schedule schedule = requireSchedule(workspaceId, scheduleId);
+        AlertRule rule = ensureDefaultRule(schedule);
+        Execution execution = syntheticTestExecution(schedule);
+        List<AlertDtos.AlertDeliveryResult> results = new ArrayList<>();
+        List<String> emailRecipients = recipients(rule);
+        if (emailRecipients.isEmpty()) {
+            results.add(delivery("email", "SKIPPED", "No email recipients configured."));
+        } else {
+            boolean sent = emailService.sendTestAlert(emailRecipients, schedule.name);
+            results.add(delivery("email", sent ? "SENT" : "FAILED", sent ? "Sent to " + emailRecipients.size() + " recipient(s)." : "Email service is disabled or delivery failed."));
+        }
+        results.add(testWebhook(rule, "generic webhook", rule.webhookUrlEncrypted, alertPayload(rule, "test", "Manual test alert", execution)));
+        String summary = rule.schedule.name + " test alert from APIAutopsy";
+        results.add(testWebhook(rule, "slack", rule.slackWebhookUrlEncrypted, java.util.Map.of("text", summary)));
+        results.add(testWebhook(rule, "discord", rule.discordWebhookUrlEncrypted, java.util.Map.of("content", summary)));
+        results.add(testWebhook(rule, "teams", rule.teamsWebhookUrlEncrypted, java.util.Map.of("text", summary)));
+        return new AlertDtos.AlertTestResponse(schedule.id, Instant.now(), results);
+    }
+
     @Transactional
     public AlertRule ensureDefaultRule(Schedule schedule) {
         return rules.findByScheduleId(schedule.id).orElseGet(() -> {
@@ -209,6 +230,41 @@ public class AlertService {
         } catch (RuntimeException ex) {
             log.warn("Alert {} webhook delivery failed for schedule {}", channel, rule.schedule.id, ex);
         }
+    }
+
+    private AlertDtos.AlertDeliveryResult testWebhook(AlertRule rule, String channel, String encryptedUrl, java.util.Map<String, Object> payload) {
+        if (encryptedUrl == null || encryptedUrl.isBlank()) return delivery(channel, "SKIPPED", "Not configured.");
+        try {
+            String webhookUrl = cryptoService.decrypt(encryptedUrl);
+            restClient.post()
+                .uri(ssrfGuard.validateExternalHttpUrl(webhookUrl))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(payload)
+                .retrieve()
+                .toBodilessEntity();
+            return delivery(channel, "SENT", "Test payload accepted.");
+        } catch (RuntimeException ex) {
+            log.warn("Test alert {} webhook delivery failed for schedule {}", channel, rule.schedule.id, ex);
+            return delivery(channel, "FAILED", "Delivery failed. Check the webhook URL and provider permissions.");
+        }
+    }
+
+    private Execution syntheticTestExecution(Schedule schedule) {
+        Execution execution = new Execution();
+        execution.workspace = schedule.workspace;
+        execution.apiRequest = schedule.apiRequest;
+        execution.schedule = schedule;
+        execution.success = false;
+        execution.statusCode = 599;
+        execution.responseTimeMs = 0;
+        execution.assertionPassed = false;
+        execution.errorMessage = "Manual test alert";
+        execution.executedAt = Instant.now();
+        return execution;
+    }
+
+    private AlertDtos.AlertDeliveryResult delivery(String channel, String status, String message) {
+        return new AlertDtos.AlertDeliveryResult(channel, status, message);
     }
 
     private java.util.Map<String, Object> alertPayload(AlertRule rule, String event, String reason, Execution execution) {

@@ -101,6 +101,48 @@ class AlertServiceTest {
         verify(emailService).sendAlertResolved(java.util.List.of("owner@apiautopsy.com"), schedule.name);
     }
 
+    @Test
+    void testAlertReportsPerChannelDelivery() {
+        Schedule schedule = schedule();
+        AlertRule rule = new AlertRule();
+        rule.id = UUID.randomUUID();
+        rule.workspace = schedule.workspace;
+        rule.schedule = schedule;
+        rule.enabled = true;
+        rule.emailRecipients = java.util.List.of("ops@apiautopsy.com");
+        when(rules.findByScheduleId(schedule.id)).thenReturn(Optional.of(rule));
+        when(schedules.findById(schedule.id)).thenReturn(Optional.of(schedule));
+        when(emailService.sendTestAlert(java.util.List.of("owner@apiautopsy.com", "ops@apiautopsy.com"), schedule.name)).thenReturn(true);
+
+        AlertDtos.AlertTestResponse response = service.sendTestAlert(UUID.randomUUID(), schedule.workspace.id, schedule.id);
+
+        assertThat(response.scheduleId()).isEqualTo(schedule.id);
+        assertThat(response.results()).extracting(AlertDtos.AlertDeliveryResult::channel)
+            .containsExactly("email", "generic webhook", "slack", "discord", "teams");
+        assertThat(response.results().getFirst().status()).isEqualTo("SENT");
+        assertThat(response.results().subList(1, response.results().size()))
+            .allMatch(result -> result.status().equals("SKIPPED"));
+    }
+
+    @Test
+    void testAlertFailsEmailWhenNoRecipientsExist() {
+        Schedule schedule = schedule();
+        schedule.createdBy = null;
+        schedule.workspace.owner = null;
+        AlertRule rule = new AlertRule();
+        rule.id = UUID.randomUUID();
+        rule.workspace = schedule.workspace;
+        rule.schedule = schedule;
+        rule.enabled = true;
+        when(rules.findByScheduleId(schedule.id)).thenReturn(Optional.of(rule));
+        when(schedules.findById(schedule.id)).thenReturn(Optional.of(schedule));
+
+        AlertDtos.AlertTestResponse response = service.sendTestAlert(UUID.randomUUID(), schedule.workspace.id, schedule.id);
+
+        assertThat(response.results().getFirst().channel()).isEqualTo("email");
+        assertThat(response.results().getFirst().status()).isEqualTo("SKIPPED");
+    }
+
     private Schedule schedule() {
         User owner = new User();
         owner.id = UUID.randomUUID();

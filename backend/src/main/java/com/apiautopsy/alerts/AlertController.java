@@ -26,6 +26,11 @@ public class AlertController {
         return service.saveRule(SecurityUtils.currentUser().id(), workspaceId, scheduleId, request);
     }
 
+    @PostMapping("/rules/{scheduleId}/test")
+    AlertDtos.AlertTestResponse testRule(@PathVariable UUID workspaceId, @PathVariable UUID scheduleId) {
+        return service.sendTestAlert(SecurityUtils.currentUser().id(), workspaceId, scheduleId);
+    }
+
     @GetMapping("/incidents")
     List<AlertDtos.AlertIncidentResponse> listIncidents(@PathVariable UUID workspaceId) {
         return service.listIncidents(SecurityUtils.currentUser().id(), workspaceId);

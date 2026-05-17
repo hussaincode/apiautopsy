@@ -65,6 +65,31 @@ public class EmailService {
             """.formatted(scheduleName));
     }
 
+    public boolean sendTestAlert(java.util.List<String> recipients, String scheduleName) {
+        if (recipients == null || recipients.isEmpty()) return false;
+        if (!enabled) {
+            log.warn("Email delivery disabled. Test alert for '{}' would be sent to {}", scheduleName, recipients);
+            return false;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(from);
+            message.setTo(recipients.toArray(String[]::new));
+            message.setSubject("APIAutopsy test alert: " + scheduleName);
+            message.setText("""
+                This is a test alert from APIAutopsy.
+
+                Schedule: %s
+                Result: Email delivery is configured for this monitor.
+                """.formatted(scheduleName));
+            mailSender.send(message);
+            return true;
+        } catch (MailException | IllegalArgumentException ex) {
+            log.error("Could not send test alert email for '{}'", scheduleName, ex);
+            return false;
+        }
+    }
+
     private void sendAlert(java.util.List<String> recipients, String subject, String text) {
         if (recipients == null || recipients.isEmpty()) return;
         if (!enabled) {
