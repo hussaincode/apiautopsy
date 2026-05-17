@@ -17,7 +17,18 @@ vi.mock('../../api/hooks', () => ({
       recentExecutions: [
         { executedAt: new Date('2026-05-06T10:00:00Z').toISOString(), success: true, statusCode: 200, responseTimeMs: 110 },
         { executedAt: new Date('2026-05-06T10:05:00Z').toISOString(), success: false, statusCode: 500, responseTimeMs: 980 }
-      ]
+      ],
+      incidents: [{
+        id: 'incident-1',
+        executionId: 'execution-123456',
+        status: 'RESOLVED',
+        stateLabel: 'Recovered',
+        reason: 'Request failed with status 500',
+        openedAt: '2026-05-06T10:05:00Z',
+        resolvedAt: '2026-05-06T10:10:00Z',
+        lastTriggeredAt: '2026-05-06T10:05:00Z',
+        durationSeconds: 300
+      }]
     },
     isLoading: false,
     isError: false
@@ -37,5 +48,8 @@ describe('PublicStatusPage', () => {
     expect(screen.getAllByText('99.90% uptime').length).toBeGreaterThan(0);
     expect(screen.getByText('Partial outage')).toBeInTheDocument();
     expect(screen.getByText('1 failed checks and 1 successful checks were recorded.')).toBeInTheDocument();
+    expect(screen.getByText('Incident history')).toBeInTheDocument();
+    expect(screen.getByText('Recovered')).toBeInTheDocument();
+    expect(screen.getByText('Request failed with status 500')).toBeInTheDocument();
   });
 });

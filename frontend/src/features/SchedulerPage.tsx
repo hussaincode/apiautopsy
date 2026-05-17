@@ -128,7 +128,6 @@ export function SchedulerPage({
               const collection = schedule.collectionId ? collectionById.get(schedule.collectionId) : undefined;
               const active = selectedSchedule?.id === schedule.id;
               const rule = ruleByScheduleId.get(schedule.id);
-              const incidentOpen = openIncidents.some((incident) => incident.scheduleId === schedule.id);
               const title = schedule.targetType === 'WORKFLOW' ? collection?.name ?? 'Collection workflow' : request?.name ?? 'Unknown API';
               const subtitle = schedule.targetType === 'WORKFLOW' ? 'Workflow schedule' : `${request?.method ?? ''} ${request?.url ?? ''}`;
               return (
@@ -180,6 +179,7 @@ export function SchedulerPage({
           request={selectedRequest}
           collectionName={selectedCollection?.name}
           incidents={(alertIncidents.data ?? []).filter((incident) => selectedSchedule && incident.scheduleId === selectedSchedule.id)}
+          alertRule={selectedSchedule ? ruleByScheduleId.get(selectedSchedule.id) : undefined}
           onResolveIncident={(incidentId) => resolveAlertIncident.mutate(incidentId)}
           assertions={assertions.data ?? []}
           onCreateAssertion={(payload) => createAssertion.mutateAsync(payload)}
@@ -223,7 +223,7 @@ function isSchedule(value: unknown): value is Schedule {
   return Boolean(value && typeof value === 'object' && 'id' in value && 'name' in value);
 }
 
-function ScheduleDetailPanel({ assertions, collectionName, executions, incidents, isLoading, metrics, onCreateAssertion, onDeleteAssertion, onResolveIncident, request, schedule }: { assertions: ScheduleAssertion[]; collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onCreateAssertion: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDeleteAssertion: (assertionId: string) => Promise<unknown>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
+function ScheduleDetailPanel({ alertRule, assertions, collectionName, executions, incidents, isLoading, metrics, onCreateAssertion, onDeleteAssertion, onResolveIncident, request, schedule }: { alertRule?: AlertRule; assertions: ScheduleAssertion[]; collectionName?: string; executions: Execution[]; incidents: AlertIncident[]; isLoading: boolean; metrics: ReturnType<typeof calculateMetrics>; onCreateAssertion: (payload: Partial<ScheduleAssertion>) => Promise<unknown>; onDeleteAssertion: (assertionId: string) => Promise<unknown>; onResolveIncident: (incidentId: string) => void; request?: ApiRequest; schedule?: Schedule }) {
   if (!schedule) {
     return <section className="rounded-2xl border border-slate-800 bg-[#111827] p-6 shadow-xl shadow-black/20"><EmptyState title="Select a schedule" body="Choose a schedule to inspect uptime, latency, and execution history." /></section>;
   }
@@ -274,30 +274,11 @@ function ScheduleDetailPanel({ assertions, collectionName, executions, incidents
       </div>
 
       <div className="px-5 pb-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-100">Incidents</h3>
-          <span className="text-xs text-slate-500">{incidents.filter((incident) => incident.status === 'OPEN').length} open</span>
-        </div>
-        <div className="overflow-hidden rounded-xl border border-slate-800">
-          {incidents.slice(0, 4).map((incident) => (
-            <div key={incident.id} className="flex items-start justify-between gap-3 border-b border-slate-800 px-3 py-3 text-sm last:border-b-0">
-              <div className="min-w-0">
-                <div className={`font-semibold ${incident.status === 'OPEN' ? 'text-red-300' : 'text-teal-300'}`}>{incident.status}</div>
-                <div className="mt-1 truncate text-slate-300">{incident.reason}</div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {incident.stateLabel ?? (incident.status === 'OPEN' ? 'Currently down' : 'Recovered')} · {formatDuration(incident.durationSeconds)} · Last triggered {new Date(incident.lastTriggeredAt).toLocaleString()}
-                </div>
-                {incident.executionId && <div className="mt-1 font-mono text-[11px] text-slate-600">Execution {incident.executionId.slice(0, 8)}</div>}
-              </div>
-              {incident.status === 'OPEN' && (
-                <button className="rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-teal-400 hover:text-teal-300" onClick={() => onResolveIncident(incident.id)}>
-                  Resolve
-                </button>
-              )}
-            </div>
-          ))}
-          {incidents.length === 0 && <div className="p-4 text-center text-sm text-slate-500">No incidents for this schedule.</div>}
-        </div>
+        <IncidentTimeline incidents={incidents} onResolveIncident={onResolveIncident} />
+      </div>
+
+      <div className="px-5 pb-5">
+        <AlertProof rule={alertRule} />
       </div>
 
       <div className="px-5 pb-5">
@@ -380,6 +361,81 @@ function PublicStatusCard({ schedule }: { schedule: Schedule }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function IncidentTimeline({ incidents, onResolveIncident }: { incidents: AlertIncident[]; onResolveIncident: (incidentId: string) => void }) {
+  const openCount = incidents.filter((incident) => incident.status === 'OPEN').length;
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">Incident timeline</h3>
+          <p className="mt-1 text-xs text-slate-500">Opened automatically on failure and closed when the monitor recovers.</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${openCount > 0 ? 'bg-red-500/15 text-red-300' : 'bg-teal-500/15 text-teal-300'}`}>{openCount > 0 ? `${openCount} open` : 'Recovered'}</span>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40">
+        {incidents.slice(0, 6).map((incident, index) => (
+          <div key={incident.id} className="relative px-4 py-4 text-sm">
+            {index < Math.min(incidents.length, 6) - 1 && <div className="absolute bottom-0 left-[25px] top-9 w-px bg-slate-800" />}
+            <div className="flex items-start gap-3">
+              <span className={`relative z-10 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${incident.status === 'OPEN' ? 'bg-red-500/20 text-red-300' : 'bg-teal-500/20 text-teal-300'}`}>
+                {incident.status === 'OPEN' ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`font-semibold ${incident.status === 'OPEN' ? 'text-red-300' : 'text-teal-300'}`}>{incident.stateLabel ?? (incident.status === 'OPEN' ? 'Currently down' : 'Recovered')}</span>
+                  <span className="text-xs text-slate-500">{formatDuration(incident.durationSeconds)}</span>
+                </div>
+                <div className="mt-1 break-words text-slate-300">{incident.reason}</div>
+                <div className="mt-2 grid gap-1 text-xs text-slate-500">
+                  <span>Started {formatDateTime(incident.openedAt)}</span>
+                  {incident.resolvedAt && <span>Resolved {formatDateTime(incident.resolvedAt)}</span>}
+                  {incident.executionId && <span className="font-mono">Related execution {incident.executionId.slice(0, 8)}</span>}
+                </div>
+              </div>
+              {incident.status === 'OPEN' && (
+                <button className="shrink-0 rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-teal-400 hover:text-teal-300" onClick={() => onResolveIncident(incident.id)}>
+                  Mark resolved
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        {incidents.length === 0 && <div className="p-4 text-center text-sm text-slate-500">No incidents for this schedule.</div>}
+      </div>
+    </div>
+  );
+}
+
+function AlertProof({ rule }: { rule?: AlertRule }) {
+  const channels = [
+    { label: 'Owner email', enabled: rule?.enabled, detail: 'Schedule owner or workspace owner' },
+    { label: 'Extra emails', enabled: rule?.enabled && (rule.emailRecipients?.length ?? 0) > 0, detail: rule?.emailRecipients?.join(', ') },
+    { label: 'Generic webhook', enabled: rule?.enabled && rule.genericWebhookConfigured },
+    { label: 'Slack', enabled: rule?.enabled && rule.slackWebhookConfigured },
+    { label: 'Discord', enabled: rule?.enabled && rule.discordWebhookConfigured },
+    { label: 'Teams', enabled: rule?.enabled && rule.teamsWebhookConfigured }
+  ];
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+      <div className="flex items-start gap-2">
+        <Bell className="mt-0.5 text-indigo-300" size={16} />
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">Alert delivery proof</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">When an incident opens or recovers, APIAutopsy notifies enabled channels below. Webhook URLs stay encrypted and are never shown.</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {channels.map((channel) => (
+          <span key={channel.label} className={`rounded-full px-3 py-1 text-xs font-bold ${channel.enabled ? 'bg-teal-500/15 text-teal-300' : 'bg-slate-800 text-slate-500'}`} title={channel.detail}>
+            {channel.label}: {channel.enabled ? 'enabled' : 'off'}
+          </span>
+        ))}
+      </div>
+      {!rule?.enabled && <p className="mt-3 text-xs text-amber-300">Alerts are currently off for this monitor.</p>}
     </div>
   );
 }

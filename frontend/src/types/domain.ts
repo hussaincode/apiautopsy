@@ -78,7 +78,18 @@ export interface ScheduleDetail { schedule: Schedule; metrics: ScheduleMetrics; 
 export type AssertionType = 'STATUS_CODE' | 'JSON_PATH_EXISTS' | 'JSON_PATH_EQUALS' | 'BODY_CONTAINS' | 'HEADER_EXISTS' | 'MAX_LATENCY_MS' | 'MAX_RESPONSE_SIZE_BYTES';
 export interface ScheduleAssertion { id: string; scheduleId: string; type: AssertionType; name: string; enabled: boolean; expectedStatusCode?: number; jsonPath?: string; expectedValue?: string; containsText?: string; headerName?: string; maxLatencyMs?: number; maxResponseSizeBytes?: number; createdAt: string; updatedAt: string; }
 export interface AssertionResult { assertionId: string; name: string; type: AssertionType; passed: boolean; message: string; }
-export interface PublicStatus { name: string; method: string; url?: string; status: 'OPERATIONAL' | 'DEGRADED' | 'DOWN' | 'UNKNOWN'; successRate: number; avgLatencyMs: number; p95LatencyMs: number; uptimeTarget: number; totalRuns: number; lastRunAt?: string; recentExecutions: Array<{ executedAt: string; success: boolean; statusCode?: number; responseTimeMs: number }>; }
+export interface PublicIncident {
+  id: string;
+  executionId?: string;
+  status: 'OPEN' | 'RESOLVED';
+  stateLabel: string;
+  reason: string;
+  openedAt: string;
+  resolvedAt?: string;
+  lastTriggeredAt: string;
+  durationSeconds: number;
+}
+export interface PublicStatus { name: string; method: string; url?: string; status: 'OPERATIONAL' | 'DEGRADED' | 'DOWN' | 'UNKNOWN'; successRate: number; avgLatencyMs: number; p95LatencyMs: number; uptimeTarget: number; totalRuns: number; lastRunAt?: string; recentExecutions: Array<{ executedAt: string; success: boolean; statusCode?: number; responseTimeMs: number }>; incidents?: PublicIncident[]; }
 export interface AlertRule {
   id: string;
   scheduleId: string;

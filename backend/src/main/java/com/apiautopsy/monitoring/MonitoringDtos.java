@@ -53,8 +53,20 @@ public class MonitoringDtos {
         double uptimeTarget,
         long totalRuns,
         Instant lastRunAt,
-        List<PublicExecutionResponse> recentExecutions
+        List<PublicExecutionResponse> recentExecutions,
+        List<PublicIncidentResponse> incidents
     ) {}
 
     public record PublicExecutionResponse(Instant executedAt, boolean success, Integer statusCode, long responseTimeMs) {}
+    public record PublicIncidentResponse(
+        UUID id,
+        UUID executionId,
+        String status,
+        String stateLabel,
+        String reason,
+        Instant openedAt,
+        Instant resolvedAt,
+        Instant lastTriggeredAt,
+        long durationSeconds
+    ) {}
 }

@@ -1,4 +1,5 @@
-import { CheckCircle2, Clock3, Gauge, MapPin, ShieldCheck, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Gauge, MapPin, ShieldCheck, XCircle } from 'lucide-react';
+import type { PublicIncident } from '../types/domain';
 import { usePublicStatus } from '../api/hooks';
 
 export function PublicStatusPage({ slug }: { slug: string }) {
@@ -65,6 +66,8 @@ export function PublicStatusPage({ slug }: { slug: string }) {
               successRate={data.successRate}
             />
 
+            <PublicIncidentTimeline incidents={data.incidents ?? []} />
+
             <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
               <div className="border-b border-slate-800 px-5 py-4">
                 <div className="font-semibold">Recent checks</div>
@@ -86,6 +89,45 @@ export function PublicStatusPage({ slug }: { slug: string }) {
         )}
       </div>
     </main>
+  );
+}
+
+function PublicIncidentTimeline({ incidents }: { incidents: PublicIncident[] }) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-base font-semibold text-slate-100">Incident history</h3>
+          <p className="mt-1 text-sm text-slate-500">Client-safe timeline of outages and recoveries for this monitor.</p>
+        </div>
+        <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-slate-400">{incidents.filter((incident) => incident.status === 'OPEN').length} open</span>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/50">
+        {incidents.slice(0, 8).map((incident) => (
+          <div key={incident.id} className="relative border-b border-slate-800 px-5 py-4 last:border-b-0">
+            <div className="absolute bottom-0 left-7 top-8 w-px bg-slate-800 last:hidden" />
+            <div className="flex items-start gap-3">
+              <span className={`relative z-10 mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${incident.status === 'OPEN' ? 'bg-red-500/20 text-red-300' : 'bg-teal-500/20 text-teal-300'}`}>
+                {incident.status === 'OPEN' ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`font-semibold ${incident.status === 'OPEN' ? 'text-red-300' : 'text-teal-300'}`}>{incident.stateLabel}</span>
+                  <span className="text-xs text-slate-500">{formatIncidentDuration(incident.durationSeconds)}</span>
+                </div>
+                <p className="mt-1 text-sm leading-5 text-slate-300">{incident.reason}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                  <span>Started {formatDateTime(incident.openedAt)}</span>
+                  {incident.resolvedAt && <span>Recovered {formatDateTime(incident.resolvedAt)}</span>}
+                  {incident.executionId && <span className="font-mono">Execution {incident.executionId.slice(0, 8)}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {incidents.length === 0 && <div className="px-5 py-8 text-center text-sm text-slate-500">No incidents have been recorded for this status page.</div>}
+      </div>
+    </section>
   );
 }
 
@@ -217,6 +259,22 @@ function formatOutageDuration(failedChecks: number) {
   const hours = Math.floor(estimatedMinutes / 60);
   const minutes = estimatedMinutes % 60;
   return `${hours} hrs ${minutes} mins`;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, { day: 'numeric', hour: 'numeric', minute: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function formatIncidentDuration(seconds?: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds ?? 0));
+  if (safeSeconds < 60) return `${safeSeconds}s`;
+  const minutes = Math.floor(safeSeconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
 function formatStatus(status: string) {

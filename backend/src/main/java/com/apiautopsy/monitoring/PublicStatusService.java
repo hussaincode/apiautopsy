@@ -1,5 +1,8 @@
 package com.apiautopsy.monitoring;
 
+import com.apiautopsy.alerts.AlertIncident;
+import com.apiautopsy.alerts.AlertIncidentRepository;
+import com.apiautopsy.alerts.AlertIncidentStatus;
 import com.apiautopsy.common.NotFoundException;
 import com.apiautopsy.executions.Execution;
 import com.apiautopsy.executions.ExecutionRepository;
@@ -7,6 +10,8 @@ import com.apiautopsy.schedules.Schedule;
 import com.apiautopsy.schedules.ScheduleRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 
@@ -14,10 +19,12 @@ import java.util.List;
 public class PublicStatusService {
     private final ScheduleRepository schedules;
     private final ExecutionRepository executions;
+    private final AlertIncidentRepository incidents;
 
-    public PublicStatusService(ScheduleRepository schedules, ExecutionRepository executions) {
+    public PublicStatusService(ScheduleRepository schedules, ExecutionRepository executions, AlertIncidentRepository incidents) {
         this.schedules = schedules;
         this.executions = executions;
+        this.incidents = incidents;
     }
 
     public MonitoringDtos.PublicStatusResponse get(String slug) {
@@ -40,7 +47,24 @@ public class PublicStatusService {
             schedule.sloUptimeTarget,
             total,
             schedule.lastRunAt,
-            recent.stream().limit(20).map(execution -> new MonitoringDtos.PublicExecutionResponse(execution.executedAt, execution.success, execution.statusCode, execution.responseTimeMs)).toList()
+            recent.stream().limit(20).map(execution -> new MonitoringDtos.PublicExecutionResponse(execution.executedAt, execution.success, execution.statusCode, execution.responseTimeMs)).toList(),
+            incidents.findTop10ByScheduleIdOrderByOpenedAtDesc(schedule.id).stream().map(this::incidentResponse).toList()
+        );
+    }
+
+    private MonitoringDtos.PublicIncidentResponse incidentResponse(AlertIncident incident) {
+        Instant end = incident.resolvedAt == null ? Instant.now() : incident.resolvedAt;
+        long durationSeconds = incident.openedAt == null ? 0 : Math.max(0, Duration.between(incident.openedAt, end).toSeconds());
+        return new MonitoringDtos.PublicIncidentResponse(
+            incident.id,
+            incident.execution == null ? null : incident.execution.id,
+            incident.status.name(),
+            incident.status == AlertIncidentStatus.OPEN ? "Currently down" : "Recovered",
+            incident.reason,
+            incident.openedAt,
+            incident.resolvedAt,
+            incident.lastTriggeredAt,
+            durationSeconds
         );
     }
 
