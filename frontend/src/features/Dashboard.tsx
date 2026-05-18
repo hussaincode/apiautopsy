@@ -176,7 +176,7 @@ export function Dashboard() {
       setDraft(fromRequest(saved));
       return saved;
     }
-    const saved = draft.id
+    const saved = shouldUpdateAuthenticatedRequest(requestList, draft.id)
       ? await updateRequest.mutateAsync({ id: draft.id, payload })
       : await createRequest.mutateAsync(payload);
     openRequest(saved.id);
@@ -759,6 +759,10 @@ function inferBodyMode(request: ApiRequest) {
   if (request.bodyType === 'FORM_DATA') return 'form-data' as const;
   if (contentType.includes('x-www-form-urlencoded')) return 'x-www-form-urlencoded' as const;
   return 'raw' as const;
+}
+
+export function shouldUpdateAuthenticatedRequest(requests: Pick<ApiRequest, 'id'>[], draftId?: string) {
+  return Boolean(draftId && requests.some((request) => request.id === draftId));
 }
 
 function protectedFeatureMessage(page: AppPage) {
