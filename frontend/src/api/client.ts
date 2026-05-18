@@ -41,16 +41,3 @@ function attachAuthToken(config: InternalAxiosRequestConfig) {
 
 api.interceptors.request.use(attachAuthToken);
 sameOriginApi.interceptors.request.use(attachAuthToken);
-
-api.interceptors.response.use(undefined, async (error) => {
-  const config = error.config as (InternalAxiosRequestConfig & { sameOriginRetried?: boolean }) | undefined;
-  if (!config || config.sameOriginRetried || !shouldRetrySameOrigin(error)) {
-    throw error;
-  }
-
-  const { baseURL: _baseURL, ...retryConfig } = config;
-  retryConfig.sameOriginRetried = true;
-  return sameOriginApi.request({
-    ...retryConfig
-  });
-});

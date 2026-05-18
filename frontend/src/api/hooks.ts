@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import { executeSavedRequest } from './executeRequest';
 import { executePublicRequest } from './publicExecute';
 import type { AlertIncident, AlertRule, AlertTestResponse, ApiRequest, Certificate, Collection, ConnectedApp, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
@@ -60,7 +61,7 @@ export function useInviteUser(workspaceId?: string) {
 export function useExecute(workspaceId?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (requestId: string) => (await api.post<Execution>(`/workspaces/${workspaceId}/requests/${requestId}/execute`)).data,
+    mutationFn: async (requestId: string) => executeSavedRequest(workspaceId, requestId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['executions', workspaceId] });
       qc.invalidateQueries({ queryKey: ['report', workspaceId] });
