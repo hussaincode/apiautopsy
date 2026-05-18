@@ -20,11 +20,21 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+    private static final List<String> REQUIRED_CORS_ORIGINS = List.of(
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://apiautopsy.com",
+        "https://www.apiautopsy.com"
+    );
+    private static final List<String> REQUIRED_CORS_PATTERNS = List.of("https://*.vercel.app");
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter, RateLimitFilter rateLimitFilter, OAuth2SuccessHandler successHandler) throws Exception {
         http.csrf(csrf -> csrf.disable())
@@ -51,12 +61,24 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins}") String origins) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(origins.split(",")));
+        config.setAllowedOrigins(allowedOrigins(origins));
+        config.setAllowedOriginPatterns(REQUIRED_CORS_PATTERNS);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    static List<String> allowedOrigins(String configuredOrigins) {
+        Set<String> mergedOrigins = new LinkedHashSet<>(REQUIRED_CORS_ORIGINS);
+        if (configuredOrigins != null) {
+            for (String origin : configuredOrigins.split(",")) {
+                String normalizedOrigin = origin.trim();
+                if (!normalizedOrigin.isBlank()) mergedOrigins.add(normalizedOrigin);
+            }
+        }
+        return List.copyOf(mergedOrigins);
     }
 }
