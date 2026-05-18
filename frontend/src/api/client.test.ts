@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isProductionAppHost, resolveApiOrigin } from './client';
+import { AxiosError } from 'axios';
+import { isProductionAppHost, resolveApiOrigin, shouldRetrySameOrigin } from './client';
 
 describe('resolveApiOrigin', () => {
   it('uses the configured API URL when Vite provides one', () => {
@@ -21,5 +22,24 @@ describe('isProductionAppHost', () => {
     expect(isProductionAppHost('apiautopsy.com')).toBe(true);
     expect(isProductionAppHost('www.apiautopsy.com')).toBe(true);
     expect(isProductionAppHost('127.0.0.1')).toBe(false);
+  });
+});
+
+describe('shouldRetrySameOrigin', () => {
+  it('retries production browser network failures through the same-origin backend route', () => {
+    expect(shouldRetrySameOrigin(new AxiosError('Network Error', 'ERR_NETWORK'), 'apiautopsy.com')).toBe(true);
+  });
+
+  it('does not retry local network errors or backend responses', () => {
+    const backendError = new AxiosError('Bad request', 'ERR_BAD_REQUEST', undefined, undefined, {
+      status: 400,
+      statusText: 'Bad Request',
+      headers: {},
+      config: {} as never,
+      data: {}
+    });
+
+    expect(shouldRetrySameOrigin(new AxiosError('Network Error', 'ERR_NETWORK'), '127.0.0.1')).toBe(false);
+    expect(shouldRetrySameOrigin(backendError, 'apiautopsy.com')).toBe(false);
   });
 });

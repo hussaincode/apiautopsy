@@ -15,6 +15,10 @@ export function isProductionAppHost(hostname = typeof window === 'undefined' ? '
   return PRODUCTION_APP_HOSTS.has(hostname);
 }
 
+export function shouldRetrySameOrigin(error: unknown, hostname = typeof window === 'undefined' ? '' : window.location.hostname) {
+  return axios.isAxiosError(error) && !error.response && isProductionAppHost(hostname);
+}
+
 const rawApiUrl = resolveApiOrigin(import.meta.env.VITE_API_URL);
 const apiOrigin = rawApiUrl.replace(/\/+$/, '');
 const baseURL = apiOrigin.endsWith('/api') ? apiOrigin : `${apiOrigin}/api`;
@@ -37,3 +41,16 @@ function attachAuthToken(config: InternalAxiosRequestConfig) {
 
 api.interceptors.request.use(attachAuthToken);
 sameOriginApi.interceptors.request.use(attachAuthToken);
+
+api.interceptors.response.use(undefined, async (error) => {
+  const config = error.config as (InternalAxiosRequestConfig & { sameOriginRetried?: boolean }) | undefined;
+  if (!config || config.sameOriginRetried || !shouldRetrySameOrigin(error)) {
+    throw error;
+  }
+
+  const { baseURL: _baseURL, ...retryConfig } = config;
+  retryConfig.sameOriginRetried = true;
+  return sameOriginApi.request({
+    ...retryConfig
+  });
+});
