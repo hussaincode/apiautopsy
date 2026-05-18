@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import { executePublicRequest } from './publicExecute';
 import type { AlertIncident, AlertRule, AlertTestResponse, ApiRequest, Certificate, Collection, ConnectedApp, CreatedIntegrationApiKey, Execution, IntegrationApiKey, PublicStatus, ReportSummary, Schedule, ScheduleAssertion, ScheduleDetail, WorkflowRun, WorkflowStep, Workspace } from '../types/domain';
 
 export function useWorkspaces(enabled = true) {
@@ -69,7 +70,7 @@ export function useExecute(workspaceId?: string) {
 
 export function usePublicExecute() {
   return useMutation({
-    mutationFn: async (payload: Partial<ApiRequest> & { auth?: Record<string, unknown> }) => (await api.post<Execution>('/public/execute', payload)).data
+    mutationFn: async (payload: Partial<ApiRequest> & { auth?: Record<string, unknown> }) => executePublicRequest(payload)
   });
 }
 
