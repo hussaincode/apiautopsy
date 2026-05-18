@@ -3,7 +3,7 @@ import { resolveApiOrigin } from './client';
 
 describe('resolveApiOrigin', () => {
   it('uses the configured API URL when Vite provides one', () => {
-    expect(resolveApiOrigin('https://api.example.com', 'apiautopsy.com')).toBe('https://api.example.com');
+    expect(resolveApiOrigin('https://api.example.com', 'preview.apiautopsy.test')).toBe('https://api.example.com');
   });
 
   it('keeps localhost as the fallback for local development', () => {
@@ -11,7 +11,12 @@ describe('resolveApiOrigin', () => {
     expect(resolveApiOrigin('', 'localhost')).toBe('http://localhost:8080');
   });
 
-  it('falls back to the production backend on public domains', () => {
-    expect(resolveApiOrigin(undefined, 'apiautopsy.com')).toBe('https://apiautopsy-backend.ambitiousfield-d96653f4.centralindia.azurecontainerapps.io');
+  it('uses same-origin API proxy on the production domain', () => {
+    expect(resolveApiOrigin(undefined, 'apiautopsy.com')).toBe('');
+    expect(resolveApiOrigin('https://ignored.example.com', 'www.apiautopsy.com')).toBe('');
+  });
+
+  it('falls back to the production backend on non-local public preview domains', () => {
+    expect(resolveApiOrigin(undefined, 'apiautopsy-preview.vercel.app')).toBe('https://apiautopsy-backend.ambitiousfield-d96653f4.centralindia.azurecontainerapps.io');
   });
 });
