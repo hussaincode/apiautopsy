@@ -8,6 +8,13 @@ describe('ResponseViewer', () => {
     expect(screen.getByText(/No response yet/i)).toBeInTheDocument();
   });
 
+  it('shows an active sending state while public execution is pending', () => {
+    render(<ResponseViewer execution={undefined} isLoading />);
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getByText('Sending')).toBeInTheDocument();
+    expect(screen.getByText(/Waiting for response/i)).toBeInTheDocument();
+  });
+
   it('renders execution metrics and payload', () => {
     render(
       <ResponseViewer

@@ -35,6 +35,7 @@ import { Sidebar } from './Sidebar';
 import type { AppPage, BuilderTab, RequestDraft } from './dashboardTypes';
 import { emptyRequestDraft } from './dashboardTypes';
 import { createGuestRequest, persistGuestCollections, persistGuestRequests, readGuestCollections, readGuestRequests } from './guestWorkspace';
+import { createFailedExecution, readableExecutionError } from './requestExecutionResult';
 
 const pageRoutes: Record<AppPage, string> = {
   requests: '/requests',
@@ -168,8 +169,7 @@ export function Dashboard() {
     };
   }
 
-  async function saveRequest() {
-    const payload = toPayload();
+  async function saveRequest(payload = toPayload()) {
     if (!isAuthenticated) {
       const saved = saveGuestRequest(payload, draft.id);
       openRequest(saved.id);
@@ -185,12 +185,20 @@ export function Dashboard() {
   }
 
   async function sendRequest() {
+    const startedAtMs = Date.now();
+    const payload = toPayload();
+    let saved: ApiRequest | undefined;
     setLiveExecution(undefined);
-    const saved = await saveRequest();
-    const result = isAuthenticated
-      ? await execute.mutateAsync(saved.id)
-      : await publicExecute.mutateAsync({ ...toPayload(), name: saved.name });
-    setLiveExecution(result);
+    try {
+      saved = await saveRequest(payload);
+      const result = isAuthenticated
+        ? await execute.mutateAsync(saved.id)
+        : await publicExecute.mutateAsync({ ...payload, name: saved.name, url: saved.url });
+      setLiveExecution(result);
+    } catch (error) {
+      setLiveExecution(createFailedExecution(error, saved ?? { id: draft.id }, startedAtMs));
+      setToast(readableExecutionError(error));
+    }
   }
 
   async function createCollectionFromModal() {
@@ -406,7 +414,7 @@ export function Dashboard() {
                     onSend={sendRequest}
                     onTab={setBuilderTab}
                   />
-                  <ResponseViewer execution={lastExecution} isLoading={execute.isPending} />
+                  <ResponseViewer execution={lastExecution} isLoading={execute.isPending || publicExecute.isPending} />
                 </>
               ) : (
                 <div className="p-6"><EmptyState title="Start with a request" body="Create a new request or choose one from a collection in the sidebar." /></div>
