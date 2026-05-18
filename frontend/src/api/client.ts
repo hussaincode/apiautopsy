@@ -1,7 +1,16 @@
 import axios from 'axios';
 import { useAuth } from '../store/auth';
 
-const rawApiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
+const LOCAL_API_ORIGIN = 'http://localhost:8080';
+const PRODUCTION_API_ORIGIN = 'https://apiautopsy-backend.ambitiousfield-d96653f4.centralindia.azurecontainerapps.io';
+
+export function resolveApiOrigin(configuredApiUrl?: string, hostname = typeof window === 'undefined' ? 'localhost' : window.location.hostname) {
+  const normalizedConfiguredUrl = configuredApiUrl?.trim();
+  if (normalizedConfiguredUrl) return normalizedConfiguredUrl;
+  return hostname === 'localhost' || hostname === '127.0.0.1' ? LOCAL_API_ORIGIN : PRODUCTION_API_ORIGIN;
+}
+
+const rawApiUrl = resolveApiOrigin(import.meta.env.VITE_API_URL);
 const apiOrigin = rawApiUrl.replace(/\/+$/, '');
 const baseURL = apiOrigin.endsWith('/api') ? apiOrigin : `${apiOrigin}/api`;
 
