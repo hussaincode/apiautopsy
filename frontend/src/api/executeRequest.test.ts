@@ -25,6 +25,13 @@ function rejectingClient(error: unknown) {
 }
 
 describe('executeSavedRequest', () => {
+  it('fails fast when workspace context has not loaded yet', async () => {
+    const primaryClient = resolvingClient(execution);
+
+    await expect(executeSavedRequest(undefined, 'request-1', { primaryClient })).rejects.toThrow('Workspace is still loading');
+    expect(primaryClient.post).not.toHaveBeenCalled();
+  });
+
   it('executes saved requests through the primary backend by default', async () => {
     const primaryClient = resolvingClient(execution);
     const fallbackClient = resolvingClient({ ...execution, id: 'fallback' });

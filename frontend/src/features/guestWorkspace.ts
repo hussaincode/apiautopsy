@@ -1,4 +1,5 @@
 import type { ApiRequest, Collection } from '../types/domain';
+import { readBrowserStorage, writeBrowserStorage } from '../store/browserStorage';
 
 export const GUEST_COLLECTIONS_KEY = 'apiautopsy_guest_collections';
 export const GUEST_REQUESTS_KEY = 'apiautopsy_guest_requests';
@@ -39,18 +40,18 @@ export function readGuestRequests(): ApiRequest[] {
 }
 
 export function persistGuestCollections(collections: Collection[]) {
-  localStorage.setItem(GUEST_COLLECTIONS_KEY, JSON.stringify(collections));
+  writeBrowserStorage(GUEST_COLLECTIONS_KEY, JSON.stringify(collections));
   return collections;
 }
 
 export function persistGuestRequests(requests: ApiRequest[]) {
-  localStorage.setItem(GUEST_REQUESTS_KEY, JSON.stringify(requests));
+  writeBrowserStorage(GUEST_REQUESTS_KEY, JSON.stringify(requests));
   return requests;
 }
 
 function readGuestStorage<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = readBrowserStorage(key);
     return raw ? JSON.parse(raw) as T : fallback;
   } catch {
     return fallback;

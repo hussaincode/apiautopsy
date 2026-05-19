@@ -28,6 +28,7 @@ import type { ApiRequest, Collection, Execution, Schedule } from '../types/domai
 import { RequestBuilder } from './RequestBuilder';
 import { RequestTabs } from './RequestTabs';
 import { ResponseViewer } from './ResponseViewer';
+import { isBrowserNetworkError } from '../api/publicExecute';
 import { MonitoringPage } from './MonitoringPage';
 import { SchedulerPage } from './SchedulerPage';
 import { SettingsPage } from './SettingsPage';
@@ -191,11 +192,27 @@ export function Dashboard() {
     setLiveExecution(undefined);
     try {
       saved = await saveRequest(payload);
-      const result = isAuthenticated
+      const result = isAuthenticated && workspaceId
         ? await execute.mutateAsync(saved.id)
         : await publicExecute.mutateAsync({ ...payload, name: saved.name, url: saved.url });
       setLiveExecution(result);
     } catch (error) {
+      if (isAuthenticated && isBrowserNetworkError(error)) {
+        try {
+          const result = await publicExecute.mutateAsync({
+            ...payload,
+            name: saved?.name ?? payload.name,
+            url: saved?.url ?? payload.url
+          });
+          setLiveExecution(result);
+          setToast('Test completed without saving the run because workspace execution was unreachable.');
+          return;
+        } catch (fallbackError) {
+          setLiveExecution(createFailedExecution(fallbackError, saved ?? { id: draft.id }, startedAtMs));
+          setToast(readableExecutionError(fallbackError));
+          return;
+        }
+      }
       setLiveExecution(createFailedExecution(error, saved ?? { id: draft.id }, startedAtMs));
       setToast(readableExecutionError(error));
     }

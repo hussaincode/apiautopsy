@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { readBrowserStorage, removeBrowserStorage, writeBrowserStorage } from './browserStorage';
 
 interface AuthState {
   token: string | null;
@@ -8,17 +9,17 @@ interface AuthState {
 }
 
 export const useAuth = create<AuthState>((set) => ({
-  token: localStorage.getItem('apiautopsy_token'),
-  email: localStorage.getItem('apiautopsy_email'),
+  token: readBrowserStorage('apiautopsy_token'),
+  email: readBrowserStorage('apiautopsy_email'),
   setAuth: (token, email) => {
-    localStorage.setItem('apiautopsy_token', token);
+    writeBrowserStorage('apiautopsy_token', token);
     const resolvedEmail = email ?? readEmailFromJwt(token);
-    if (resolvedEmail) localStorage.setItem('apiautopsy_email', resolvedEmail);
+    if (resolvedEmail) writeBrowserStorage('apiautopsy_email', resolvedEmail);
     set({ token, email: resolvedEmail });
   },
   logout: () => {
-    localStorage.removeItem('apiautopsy_token');
-    localStorage.removeItem('apiautopsy_email');
+    removeBrowserStorage('apiautopsy_token');
+    removeBrowserStorage('apiautopsy_email');
     set({ token: null, email: null });
   }
 }));

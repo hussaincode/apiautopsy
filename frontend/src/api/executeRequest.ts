@@ -8,6 +8,10 @@ type ExecuteSavedRequestOptions = {
 };
 
 export async function executeSavedRequest(workspaceId: string | undefined, requestId: string, options: ExecuteSavedRequestOptions = {}) {
+  if (!workspaceId) {
+    throw new Error('Workspace is still loading. Please try again in a moment.');
+  }
+
   const primaryClient = options.primaryClient ?? api;
   const fallbackClient = options.fallbackClient ?? sameOriginApi;
   const path = `/workspaces/${workspaceId}/requests/${requestId}/execute`;
